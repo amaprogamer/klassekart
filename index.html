@@ -1,0 +1,1367 @@
+<!DOCTYPE html>
+<html lang="nb">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Klassekart</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Layout: toppstripe med klassevelger, sidepanel (elever / pulter / regler / historikk) til venstre, klasserommet med tavla til høyre */
+  --bg:#eef1ee;
+  --surface:#ffffff;
+  --surface-2:#f5f7f5;
+  --ink:#17201d;
+  --muted:#5b6762;
+  --line:#d3dad5;
+  --accent:#2453c7;
+  --accent-ink:#ffffff;
+  --accent-soft:#e3eafb;
+  --board:#22423a;
+  --board-ink:#e7efe9;
+  --desk:#f1e4c9;
+  --desk-edge:#cdb68a;
+  --desk-ink:#2b2418;
+  --danger:#c0362c;
+  --danger-soft:#fbe6e3;
+  --warn:#9a600c;
+  --warn-soft:#fbf0dc;
+  --ok:#2c7a4b;
+  --ok-soft:#e2f2e8;
+  --font-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --font-body:"Atkinson Hyperlegible","Segoe UI",system-ui,-apple-system,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#111614; --surface:#1a201e; --surface-2:#212826; --ink:#e6ece8; --muted:#9aa7a1; --line:#323b38;
+    --accent:#86a7ff; --accent-ink:#0c1530; --accent-soft:#1f2a47;
+    --board:#2f5a4e; --board-ink:#e7efe9;
+    --desk:#3b3427; --desk-edge:#64553b; --desk-ink:#f4ead7;
+    --danger:#ff7d70; --danger-soft:#3b1f1c; --warn:#f0b357; --warn-soft:#3a2d17; --ok:#72d29d; --ok-soft:#18321f;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#111614; --surface:#1a201e; --surface-2:#212826; --ink:#e6ece8; --muted:#9aa7a1; --line:#323b38;
+  --accent:#86a7ff; --accent-ink:#0c1530; --accent-soft:#1f2a47;
+  --board:#2f5a4e; --board-ink:#e7efe9;
+  --desk:#3b3427; --desk-edge:#64553b; --desk-ink:#f4ead7;
+  --danger:#ff7d70; --danger-soft:#3b1f1c; --warn:#f0b357; --warn-soft:#3a2d17; --ok:#72d29d; --ok-soft:#18321f;
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.45}
+h1,h2,h3{font-family:var(--font-display);text-wrap:balance;margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+/* Top */
+.topbar{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;padding:14px 20px;border-bottom:1px solid var(--line);background:var(--surface)}
+.brand{display:flex;align-items:center;gap:10px;margin-right:auto}
+.brand h1{font-size:22px;font-weight:750;letter-spacing:-.01em}
+.brand svg{flex:none}
+.classpick{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.classpick label{font-size:13px;color:var(--muted)}
+.savestate{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;min-width:0}
+.savestate .dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}
+.savestate[data-s="saved"] .dot,.savestate[data-s="netsaved"] .dot{background:var(--ok)}
+.savestate[data-s="saving"] .dot,.savestate[data-s="loading"] .dot{background:var(--warn)}
+.savestate[data-s="error"] .dot,.savestate[data-s="slow"] .dot,.savestate[data-s="neterror"] .dot{background:var(--danger)}
+
+/* Controls */
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 12px;cursor:pointer;font-weight:700;font-size:14px;line-height:1.2;white-space:nowrap}
+.btn:hover{background:var(--surface-2)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.ghost{border-color:transparent;background:transparent}
+.btn.ghost:hover{background:var(--surface-2)}
+.btn.danger{color:var(--danger)}
+.btn[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.btn svg{width:16px;height:16px;flex:none}
+.btn.small{padding:4px 9px;font-size:13px}
+.btn[hidden]{display:none}
+select,input[type="number"],input[type="text"]{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:6px 8px;min-width:0}
+textarea{width:100%;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:10px;resize:vertical;min-height:260px;line-height:1.5}
+
+/* Layout */
+.layout{display:grid;grid-template-columns:340px minmax(0,1fr);gap:20px;padding:20px;align-items:start;max-width:1500px;margin:0 auto}
+@media (max-width:920px){.layout{grid-template-columns:minmax(0,1fr);padding:16px}}
+
+.side{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--line);background:var(--surface-2)}
+.tab{border:0;background:transparent;padding:11px 4px;font-weight:700;font-size:14px;cursor:pointer;color:var(--muted);border-bottom:3px solid transparent}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent);background:var(--surface)}
+.tabpanel{padding:16px;display:flex;flex-direction:column;gap:14px}
+.tabpanel[hidden]{display:none}
+.tabpanel h2{font-size:16px;font-weight:700}
+.help{font-size:13px;color:var(--muted);margin:0}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label,.lbl{font-size:13px;font-weight:700}
+.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.count{font-variant-numeric:tabular-nums}
+.warnbox{font-size:13px;background:var(--warn-soft);color:var(--warn);border-radius:8px;padding:8px 10px}
+.rule{display:flex;flex-direction:column;gap:8px;padding-top:14px;border-top:1px solid var(--line)}
+.rule:first-of-type{border-top:0;padding-top:0}
+.rule .row select{flex:1 1 100px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:4px;background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:3px 4px 3px 10px;font-size:13px;font-weight:700}
+.chip button{border:0;background:transparent;cursor:pointer;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;color:var(--muted)}
+.chip button:hover{background:var(--line);color:var(--ink)}
+.chip.apart{border-color:var(--danger);background:var(--danger-soft)}
+.chip.together{border-color:var(--ok);background:var(--ok-soft)}
+.empty-note{font-size:13px;color:var(--muted);font-style:italic}
+.check{display:flex;gap:8px;align-items:flex-start;font-size:14px}
+.check input{margin-top:3px}
+.hist{display:flex;flex-direction:column;gap:8px;list-style:none;margin:0;padding:0}
+.hist li{display:flex;flex-direction:column;gap:8px;align-items:stretch;border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.hist .toprow{display:flex;align-items:center;gap:8px}
+.rulesum{font-size:13px}
+.rulesum summary{cursor:pointer;color:var(--muted);font-weight:700;list-style:none}
+.rulesum summary::-webkit-details-marker{display:none}
+.rulesum summary::before{content:"▸ ";color:var(--muted)}
+.rulesum[open] summary::before{content:"▾ "}
+.rulebody{display:flex;flex-direction:column;gap:3px;margin-top:6px;padding-left:14px;border-left:2px solid var(--line);color:var(--ink)}
+.rulebody b{font-weight:700}
+.syncbox{border:1px solid var(--line);border-radius:10px;padding:12px;background:var(--surface-2);display:flex;flex-direction:column;gap:8px}
+.hist .when{margin-right:auto;font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}
+.hist .when small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+.privacy{font-size:12px;color:var(--muted);padding:12px 16px;border-top:1px solid var(--line);background:var(--surface-2);margin:0}
+
+/* Work area */
+.work{display:flex;flex-direction:column;gap:14px;min-width:0}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.toolbar .sep{width:1px;height:26px;background:var(--line);margin:0 4px}
+.toolbar .push{margin-left:auto}
+.summary{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:flex-start}
+.stat{font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.stat b{color:var(--ink)}
+.issues{display:flex;flex-direction:column;gap:6px;flex:1 1 320px}
+.pill{display:inline-flex;align-items:center;gap:8px;border-radius:8px;padding:6px 10px;font-size:14px;font-weight:700}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.danger{background:var(--danger-soft);color:var(--danger)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.info{background:var(--surface);border:1px solid var(--line);color:var(--muted);font-weight:400}
+.pill svg{width:16px;height:16px;flex:none}
+
+.room{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:22px 18px;display:flex;flex-direction:column;align-items:flex-start;gap:22px;overflow-x:auto}
+.board{order:0;margin-inline:auto;width:min(60%,440px);min-width:180px;background:var(--board);color:var(--board-ink);text-align:center;padding:9px;border-radius:6px;font-family:var(--font-display);font-weight:700;letter-spacing:.14em;text-transform:uppercase;font-size:13px;box-shadow:inset 0 -4px 0 rgba(0,0,0,.18)}
+.room.flipped .board{order:2}
+.grid{order:1;display:grid;gap:8px;justify-content:center;margin-inline:auto;flex:none}
+.desk{position:relative;container-type:inline-size;min-height:60px;display:flex;align-items:center;justify-content:center;padding:16px 5px 9px;hyphens:auto;-webkit-hyphens:auto;background:var(--desk);border:1.5px solid var(--desk-edge);border-radius:8px;box-shadow:0 3px 0 var(--desk-edge);color:var(--desk-ink);font-weight:700;font-size:15px;line-height:1.15;text-align:center;overflow-wrap:break-word;cursor:pointer;user-select:none;-webkit-user-select:none;transition:transform .12s ease}
+.desk:hover{transform:translateY(-1px)}
+.desk > span{min-width:0}
+@container (max-width: 86px){.desk > span{font-size:13px}}
+@container (max-width: 66px){.desk > span{font-size:12px}}
+.desk.empty{background:transparent;border-style:dashed;box-shadow:none;color:var(--muted);font-weight:400;font-size:13px}
+.desk.selected{outline:3px solid var(--accent);outline-offset:2px}
+.desk.over{outline:3px dashed var(--accent);outline-offset:2px}
+.desk.dragging{opacity:.4}
+.desk.flag-danger{border-color:var(--danger);box-shadow:0 3px 0 var(--danger)}
+.desk.flag-danger::before,.desk.flag-warn::before{content:"";position:absolute;left:4px;top:6px;bottom:6px;width:4px;border-radius:2px;background:var(--danger)}
+.desk.flag-warn{border-color:var(--warn)}
+.desk.flag-warn::before{background:var(--warn)}
+.desk.locked{background-image:repeating-linear-gradient(135deg,transparent 0 9px,rgba(0,0,0,.045) 9px 11px)}
+.lock{position:absolute;top:2px;right:2px;width:20px;height:20px;border:0;border-radius:5px;background:transparent;display:grid;place-items:center;cursor:pointer;color:var(--desk-ink);opacity:0;padding:0}
+.lock svg{width:13px;height:13px}
+.desk:hover .lock,.desk:focus-within .lock,.desk:focus .lock{opacity:.55}
+.desk.locked .lock{opacity:1;color:var(--accent)}
+.lock:hover{background:rgba(0,0,0,.08);opacity:1}
+@media (hover:none){.lock{opacity:.45}}
+.grid.editing .desk{cursor:pointer}
+.grid.editing .desk:hover{border-color:var(--danger);box-shadow:0 3px 0 var(--danger)}
+.cell-add{border:1.5px dashed var(--line);border-radius:6px;background:transparent;cursor:pointer;min-height:18px;padding:0;color:var(--muted);font-size:18px;line-height:1}
+.cell-add:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.editbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--accent-soft);border:1px solid var(--accent);border-radius:10px;padding:8px 12px;font-size:14px}
+.editbar[hidden]{display:none}
+.editbar span{margin-right:auto}
+.editbar .count{font-weight:700;margin-right:0}
+.grid.paint{gap:4px;touch-action:none}
+.cell{border:1.5px dashed var(--line);border-radius:6px;background:var(--surface-2);cursor:crosshair;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--desk-ink);overflow:hidden;text-align:center;line-height:1.1;padding:2px;user-select:none;-webkit-user-select:none}
+.cell:hover{border-color:var(--accent)}
+.cell.on{background:var(--desk);border:1.5px solid var(--desk-edge);box-shadow:0 2px 0 var(--desk-edge)}
+.cell.on:hover{border-color:var(--danger)}
+.cell.front{border-top:3px solid var(--accent)}
+
+.pool{display:flex;flex-direction:column;gap:8px;background:var(--surface);border:1px dashed var(--line);border-radius:12px;padding:12px 14px}
+.pool.over{border-color:var(--accent);background:var(--accent-soft)}
+.pool .lbl{color:var(--muted)}
+.pchip{border:1.5px solid var(--desk-edge);background:var(--desk);color:var(--desk-ink);border-radius:8px;padding:5px 10px;font-weight:700;cursor:grab;font-size:14px}
+.pchip.selected{outline:3px solid var(--accent);outline-offset:2px}
+.hint{font-size:13px;color:var(--muted);margin:0}
+
+/* Modal + toast */
+.modal-back{position:fixed;inset:0;background:rgba(10,15,13,.45);display:grid;place-items:center;padding:16px;z-index:50}
+.modal-back[hidden]{display:none}
+.modal{background:var(--surface);color:var(--ink);border-radius:14px;padding:20px;width:min(440px,100%);display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 60px rgba(0,0,0,.25);max-height:90vh;overflow:auto}
+.modal.wide{width:min(780px,100%)}
+.modal h3{font-size:18px}
+.modal .actions{display:flex;justify-content:flex-end;gap:8px}
+.modal img{max-width:100%;border:1px solid var(--line);border-radius:8px}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;font-weight:700;z-index:60;max-width:calc(100% - 32px);box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.toast[hidden]{display:none}
+.menu{position:relative}
+.menu-list{position:absolute;right:0;top:calc(100% + 4px);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:4px;display:flex;flex-direction:column;min-width:190px;z-index:20;box-shadow:0 10px 30px rgba(0,0,0,.12)}
+.menu-list[hidden]{display:none}
+.menu-list button{border:0;background:transparent;text-align:left;padding:8px 10px;border-radius:7px;cursor:pointer;font-weight:700;font-size:14px}
+.menu-list button:hover{background:var(--surface-2)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><rect x="5" y="2" width="18" height="5" rx="1.5" fill="var(--board)"/><rect x="2" y="11" width="7" height="5" rx="1.5" fill="var(--desk-edge)"/><rect x="10.5" y="11" width="7" height="5" rx="1.5" fill="var(--desk-edge)"/><rect x="19" y="11" width="7" height="5" rx="1.5" fill="var(--desk-edge)"/><rect x="2" y="20" width="7" height="5" rx="1.5" fill="var(--desk-edge)"/><rect x="10.5" y="20" width="7" height="5" rx="1.5" fill="var(--accent)"/><rect x="19" y="20" width="7" height="5" rx="1.5" fill="var(--desk-edge)"/></svg>
+    <h1>Klassekart</h1>
+  </div>
+  <div class="classpick">
+    <label for="classSelect">Klasse</label>
+    <select id="classSelect"></select>
+    <button class="btn small" id="btnNewClass" type="button">Ny klasse</button>
+    <button class="btn small ghost" id="btnRenameClass" type="button">Gi nytt navn</button>
+    <button class="btn small ghost danger" id="btnDeleteClass" type="button">Slett</button>
+  </div>
+  <div class="savestate" id="saveState" data-s="local" aria-live="polite"><span class="dot"></span><span id="saveText">Lagres i denne nettleseren</span></div>
+</header>
+
+<main class="layout">
+  <aside class="side">
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tab-elever" aria-controls="panel-elever" aria-selected="true" type="button">Elever</button>
+      <button class="tab" role="tab" id="tab-pulter" aria-controls="panel-pulter" aria-selected="false" type="button">Pulter</button>
+      <button class="tab" role="tab" id="tab-regler" aria-controls="panel-regler" aria-selected="false" type="button">Regler</button>
+      <button class="tab" role="tab" id="tab-historikk" aria-controls="panel-historikk" aria-selected="false" type="button">Arkiv
+    </div>
+
+    <section class="tabpanel" id="panel-elever" role="tabpanel" aria-labelledby="tab-elever">
+      <div class="row" style="justify-content:space-between">
+        <h2>Elevliste</h2>
+        <span class="stat count" id="studentCount"></span>
+      </div>
+      <p class="help">Ett navn per linje. Du kan lime inn rett fra et regneark, Visma eller itslearning.</p>
+      <textarea id="names" spellcheck="false" aria-label="Elevnavn, ett per linje"></textarea>
+      <div class="warnbox" id="dupWarn" hidden></div>
+      <div class="row">
+        <button class="btn small" id="btnSortNames" type="button">Sorter A–Å</button>
+        <button class="btn small ghost danger" id="btnClearNames" type="button">Tøm listen</button>
+      </div>
+    </section>
+
+    <section class="tabpanel" id="panel-pulter" role="tabpanel" aria-labelledby="tab-pulter" hidden>
+      <h2>Klasserommet</h2>
+      <p class="help">Rutenettet er klasserommet sett ovenfra, med tavla øverst. Marker rutene der det står en pult.</p>
+      <div class="field-grid">
+        <div class="field"><label for="layoutRows">Rader</label><input type="number" id="layoutRows" min="1" max="16"></div>
+        <div class="field"><label for="layoutPer">Kolonner</label><input type="number" id="layoutPer" min="1" max="16"></div>
+      </div>
+      <p class="help" id="layoutPreview"></p>
+      <button class="btn primary" id="btnDrawDesks" type="button">Tegn pultene</button>
+      <p class="help">Nye klasser får samme rom som klassen du står i.</p>
+    </section>
+
+    <section class="tabpanel" id="panel-regler" role="tabpanel" aria-labelledby="tab-regler" hidden>
+      <div class="rule">
+        <h2>Skal ikke sitte sammen</h2>
+        <div class="row"><select id="apartA" aria-label="Første elev"></select><select id="apartB" aria-label="Andre elev"></select><button class="btn small" id="btnAddApart" type="button">Legg til</button></div>
+        <div class="chips" id="apartList"></div>
+      </div>
+      <div class="rule">
+        <h2>Bør sitte sammen</h2>
+        <div class="row"><select id="togA" aria-label="Første elev"></select><select id="togB" aria-label="Andre elev"></select><button class="btn small" id="btnAddTog" type="button">Legg til</button></div>
+        <div class="chips" id="togList"></div>
+      </div>
+      <div class="rule">
+        <h2>Må sitte foran</h2>
+        <div class="row"><select id="frontSel" aria-label="Elev"></select><button class="btn small" id="btnAddFront" type="button">Legg til</button></div>
+        <div class="chips" id="frontList"></div>
+        <div class="row"><label for="frontRows" class="lbl">«Foran» er de</label><input type="number" id="frontRows" min="1" max="6" style="width:64px"><span class="lbl">første pult-radene</span></div>
+      </div>
+      <div class="rule">
+        <h2>Hvem regnes som naboer?</h2>
+        <select id="neighborMode" aria-label="Hvem regnes som naboer">
+          <option value="side">Bare den ved siden av</option>
+          <option value="cross">Ved siden av, foran og bak</option>
+          <option value="all">Alle rundt, også på skrå</option>
+        </select>
+        <label class="check"><input type="checkbox" id="avoidRepeat"> <span>Unngå samme naboer som i de <input type="number" id="repeatDepth" min="1" max="5" style="width:52px;padding:2px 6px"> siste kartene i historikken</span></label>
+      </div>
+      <p class="help">Låste plasser (hengelåsen på pulten) blir stående når du lager nytt kart. Lås en tom pult for å holde den ledig.</p>
+    </section>
+
+    <section class="tabpanel" id="panel-historikk" role="tabpanel" aria-labelledby="tab-historikk" hidden>
+      <h2>Arkiv</h2>
+      <p class="help">Hvert kart du lager med «Lag nytt kart» havner automatisk her, med reglene som ble brukt. Trykk «Vis» for å se kartet, eller «Hent fram» for å jobbe videre med det.</p>
+      <div class="syncbox" id="syncBox" hidden></div>
+      <ul class="hist" id="histList"></ul>
+    </section>
+
+    <p class="privacy" id="privacyNote">Elevlistene lagres bare i denne nettleseren og sendes ikke noe sted.</p>
+  </aside>
+
+  <section class="work">
+    <div class="toolbar">
+      <button class="btn primary" id="btnGenerate" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 4.5h3c2.5 0 3.5 7 6 7h3.5"/><path d="M1.5 11.5h3c1 0 1.8-1 2.4-2.3M9 6.8c.6-1.3 1.4-2.3 2.5-2.3H15"/><path d="M13 2.5l2 2-2 2M13 9.5l2 2-2 2"/></svg>Lag nytt kart</button>
+      <button class="btn" id="btnUndo" type="button" disabled><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3L2 6l3 3"/><path d="M2 6h7.5a4 4 0 010 8H6"/></svg>Angre</button>
+      <button class="btn ghost" id="btnClearSeats" type="button">Tøm kartet</button>
+      <span class="sep" aria-hidden="true"></span>
+      <button class="btn" id="btnEdit" type="button" aria-pressed="false">Tegn pulter</button>
+      <button class="btn" id="btnFlip" type="button" aria-pressed="false">Lærerens perspektiv</button>
+      <div class="menu push">
+        <button class="btn" id="btnExport" type="button" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v8M4.5 6.5L8 10l3.5-3.5"/><path d="M2 12.5V14h12v-1.5"/></svg>Skriv ut / last ned</button>
+        <div class="menu-list" id="exportMenu" hidden>
+          <button type="button" data-export="pdf">PDF for utskrift</button>
+          <button type="button" data-export="png">Bilde (PNG)</button>
+          <button type="button" data-export="text">Kopier som tekst</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="editbar" id="editBar" hidden>
+      <span>Klikk eller dra over rutene for å markere hvor det står pulter. Dra over en pult for å fjerne den.</span>
+      <span class="count" id="paintCount"></span>
+      <button class="btn small" id="btnAddRow" type="button">+ Rad</button>
+      <button class="btn small" id="btnDelRow" type="button">− Rad</button>
+      <button class="btn small" id="btnAddCol" type="button">+ Kolonne</button>
+      <button class="btn small" id="btnDelCol" type="button">− Kolonne</button>
+      <button class="btn small ghost danger" id="btnClearGrid" type="button">Fjern alle pulter</button>
+      <button class="btn small primary" id="btnEditDone" type="button">Ferdig</button>
+    </div>
+
+    <div class="summary">
+      <div class="stat" id="stats"></div>
+      <div class="issues" id="issues"></div>
+    </div>
+
+    <div class="room" id="room">
+      <div class="board" id="board">Tavle</div>
+      <div class="grid" id="grid"></div>
+    </div>
+
+    <div class="pool" id="pool">
+      <span class="lbl" id="poolLabel">Uten plass</span>
+      <div class="chips" id="poolList"></div>
+    </div>
+    <p class="hint">Klikk på to elever for å bytte plass, eller dra en elev til en annen pult. Dra en elev hit ned for å ta den ut av kartet.</p>
+  </section>
+</main>
+
+<div class="modal-back" id="modalBack" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <h3 id="modalTitle"></h3>
+    <div id="modalBody"></div>
+    <div class="actions"><button class="btn ghost" id="modalCancel" type="button">Avbryt</button><button class="btn primary" id="modalOk" type="button">OK</button></div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+(function(){
+"use strict";
+const $ = (s, el) => (el || document).querySelector(s);
+const newId = () => Math.random().toString(36).slice(2, 10);
+const key = (r, c) => r + "-" + c;
+const parseKey = k => k.split("-").map(Number);
+const coll = (a, b) => a.localeCompare(b, "nb", {sensitivity: "base"});
+const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+const ICON_LOCK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2"/></svg>';
+const ICON_UNLOCK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 014.8-1"/></svg>';
+const ICON_OK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5l3 3 7-7"/></svg>';
+const ICON_ALERT = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="6.2"/><path d="M8 4.8v3.6M8 11h0"/></svg>';
+
+/* ---------- Layouts ---------- */
+function makeLayout(rows, cols, desks){
+  const R = Math.max(1, Math.min(16, rows | 0 || 1)), C = Math.max(1, Math.min(16, cols | 0 || 1));
+  return {type: "custom", R, C, desks: (desks || []).filter(k => { const [r, c] = parseKey(k); return r < R && c < C; })};
+}
+function exampleLayout(){ // klasserommet: par med midtganger, en tregruppe i andre rad, tom rad mellom pultradene
+  return makeLayout(7, 16, ["0-7", "0-8", "0-10", "0-11", "0-13", "0-14", "2-6", "2-7", "2-8", "2-10", "2-11", "2-13", "2-14", "4-7", "4-8", "4-10", "4-11", "4-13", "4-14", "6-7", "6-8", "6-10", "6-11", "6-13", "6-14"]);
+}
+
+function neighborMap(L, mode){
+  const set = new Set(L.desks), nb = {};
+  const dirs = mode === "side" ? [[0,1],[0,-1]]
+    : mode === "all" ? [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]]
+    : [[0,1],[0,-1],[1,0],[-1,0]];
+  for (const k of L.desks){
+    const [r, c] = parseKey(k); nb[k] = new Set();
+    for (const [dr, dc] of dirs){ const k2 = key(r + dr, c + dc); if (set.has(k2)) nb[k].add(k2); }
+  }
+  return nb;
+}
+function frontSet(c){
+  const rows = [...new Set(c.layout.desks.map(k => parseKey(k)[0]))].sort((a, b) => a - b);
+  const take = new Set(rows.slice(0, Math.max(1, c.rules.frontRows | 0 || 1)));
+  return new Set(c.layout.desks.filter(k => take.has(parseKey(k)[0])));
+}
+function posMap(seats){ const p = {}; for (const k in seats) p[seats[k]] = k; return p; }
+
+/* ---------- Data ---------- */
+const EXAMPLE = ["Emma","Noah","Nora","Oskar","Sofie","Jakob","Ella","Filip","Olivia","Lukas","Ingrid","Aksel","Maja","Isak","Sara","Henrik","Leah","Elias","Frida","Magnus","Ada","Theodor","Hedda","Johannes"];
+function newClass(name, students, layout){
+  return {
+    id: newId(), name, students: students || [],
+    layout: layout ? JSON.parse(JSON.stringify(layout)) : exampleLayout(),
+    seats: {}, locked: [],
+    rules: {apart: [], together: [], front: [], frontRows: 2, neighbor: "cross", avoidRepeat: true, repeatDepth: 2},
+    history: [], flipped: false
+  };
+}
+function exampleStore(){
+  const c = newClass("Eksempel 7B", EXAMPLE.slice());
+  c.rules.apart = [["Noah","Oskar"],["Maja","Sara"]];
+  c.rules.front = ["Ella"];
+  c.rules.together = [["Ada","Hedda"]];
+  c.seats = solve(c);
+  return {version: 1, activeId: c.id, classes: [c], example: true};
+}
+function normalizeClass(c){
+  const d = newClass(c.name || "Klasse");
+  c = Object.assign(d, c);
+  c.rules = Object.assign(newClass("").rules, c.rules || {});
+  if (!c.layout || !Array.isArray(c.layout.desks)) c.layout = exampleLayout();
+  c.students = (c.students || []).filter(s => typeof s === "string" && s);
+  const st = new Set(c.students), desks = new Set(c.layout.desks), used = new Set(), seats = {};
+  for (const k in (c.seats || {})){ const s = c.seats[k]; if (desks.has(k) && st.has(s) && !used.has(s)){ seats[k] = s; used.add(s); } }
+  c.seats = seats;
+  c.locked = (c.locked || []).filter(k => desks.has(k));
+  c.rules.apart = (c.rules.apart || []).filter(p => st.has(p[0]) && st.has(p[1]));
+  c.rules.together = (c.rules.together || []).filter(p => st.has(p[0]) && st.has(p[1]));
+  c.rules.front = (c.rules.front || []).filter(s => st.has(s));
+  c.history = (c.history || []).slice(0, 12);
+  return c;
+}
+function normalizeStore(s){
+  if (!s || !Array.isArray(s.classes) || !s.classes.length) return exampleStore();
+  s.classes = s.classes.map(normalizeClass);
+  if (!s.classes.find(c => c.id === s.activeId)) s.activeId = s.classes[0].id;
+  return s;
+}
+
+let store = null;
+let cur = () => store.classes.find(c => c.id === store.activeId);
+let selected = null;   // {kind:'seat', key} | {kind:'chip', name}
+let editMode = false;
+const undoStack = [];
+
+/* ---------- Solver ---------- */
+function historyPairs(c){
+  const depth = Math.max(1, c.rules.repeatDepth | 0 || 1), st = new Set(c.students), res = new Map();
+  c.history.slice(0, depth).forEach((h, i) => {
+    const nb = neighborMap(h.layout, c.rules.neighbor);
+    for (const k in h.seats){
+      for (const k2 of (nb[k] || [])){
+        const a = h.seats[k], b = h.seats[k2];
+        if (!a || !b || coll(a, b) >= 0 || !st.has(a) || !st.has(b)) continue;
+        const id = a + "\u0001" + b;
+        if (!res.has(id)) res.set(id, [a, b, i === 0 ? 8 : 4]);
+      }
+    }
+  });
+  return [...res.values()];
+}
+function solve(c){
+  const L = c.layout, deskSet = new Set(L.desks);
+  const lockedSet = new Set(c.locked.filter(k => deskSet.has(k)));
+  const fixed = {};
+  for (const k of lockedSet) if (c.seats[k]) fixed[k] = c.seats[k];
+  const fixedStudents = new Set(Object.values(fixed));
+  const movable = L.desks.filter(k => !lockedSet.has(k));
+  const R = c.rules;
+  const ruleStudents = new Set([].concat(...R.apart, ...R.together, R.front));
+  let pool = shuffle(c.students.filter(s => !fixedStudents.has(s)));
+  pool = pool.filter(s => ruleStudents.has(s)).concat(pool.filter(s => !ruleStudents.has(s)));
+  const placed = pool.slice(0, movable.length);
+  const arr = shuffle(placed.concat(Array(Math.max(0, movable.length - placed.length)).fill(null)));
+  const nb = neighborMap(L, R.neighbor), front = frontSet(c);
+  const repeat = R.avoidRepeat ? historyPairs(c) : [];
+  const pos = {};
+  for (const k in fixed) pos[fixed[k]] = k;
+  arr.forEach((s, i) => { if (s) pos[s] = movable[i]; });
+  const adj = (a, b) => pos[a] && pos[b] && nb[pos[a]].has(pos[b]);
+  const cost = () => {
+    let s = 0;
+    for (const [a, b] of R.apart) if (adj(a, b)) s += 100;
+    for (const [a, b] of R.together) if (pos[a] && pos[b] && !nb[pos[a]].has(pos[b])) s += 40;
+    for (const a of R.front) if (pos[a] && !front.has(pos[a])) s += 60;
+    for (const [a, b, w] of repeat) if (adj(a, b)) s += w;
+    return s;
+  };
+  let now = cost(), best = now, bestArr = arr.slice();
+  const N = movable.length, iters = 40000;
+  for (let it = 0; it < iters && best > 0 && N > 1; it++){
+    const T = 40 * Math.pow(0.0005, it / iters);
+    const i = Math.floor(Math.random() * N), j = Math.floor(Math.random() * N);
+    if (i === j) continue;
+    const a = arr[i], b = arr[j];
+    if (!a && !b) continue;
+    arr[i] = b; arr[j] = a;
+    if (b) pos[b] = movable[i];
+    if (a) pos[a] = movable[j];
+    const nc = cost(), d = nc - now;
+    if (d <= 0 || Math.random() < Math.exp(-d / T)){
+      now = nc;
+      if (now < best){ best = now; bestArr = arr.slice(); }
+    } else {
+      arr[i] = a; arr[j] = b;
+      if (a) pos[a] = movable[i];
+      if (b) pos[b] = movable[j];
+    }
+  }
+  const seats = Object.assign({}, fixed);
+  bestArr.forEach((s, i) => { if (s) seats[movable[i]] = s; });
+  return seats;
+}
+
+/* ---------- Analysis ---------- */
+function analyze(c){
+  const nb = neighborMap(c.layout, c.rules.neighbor), pos = posMap(c.seats), front = frontSet(c);
+  const issues = [], flags = {};
+  const flag = (k, level, msg) => {
+    if (!k) return;
+    const f = flags[k] || (flags[k] = {level, msgs: []});
+    if (level === "danger") f.level = "danger";
+    f.msgs.push(msg);
+  };
+  const adj = (a, b) => pos[a] && pos[b] && nb[pos[a]].has(pos[b]);
+  for (const [a, b] of c.rules.apart) if (adj(a, b)){
+    const m = a + " og " + b + " sitter inntil hverandre";
+    issues.push({level: "danger", text: m}); flag(pos[a], "danger", m); flag(pos[b], "danger", m);
+  }
+  for (const a of c.rules.front) if (pos[a] && !front.has(pos[a])){
+    const m = a + " sitter ikke foran";
+    issues.push({level: "danger", text: m}); flag(pos[a], "danger", m);
+  }
+  for (const [a, b] of c.rules.together) if (pos[a] && pos[b] && !nb[pos[a]].has(pos[b])){
+    const m = a + " og " + b + " sitter ikke sammen";
+    issues.push({level: "warn", text: m}); flag(pos[a], "warn", m); flag(pos[b], "warn", m);
+  }
+  if (c.rules.avoidRepeat && c.history.length){
+    const rep = historyPairs(c).filter(([a, b]) => adj(a, b));
+    if (rep.length) issues.push({level: "info", text: rep.length + (rep.length === 1 ? " nabopar" : " nabopar") + " går igjen fra historikken: " + rep.map(p => p[0] + "–" + p[1]).join(", ")});
+  }
+  return {issues, flags};
+}
+
+/* ---------- Storage ---------- */
+const LS_KEY = "klassekart-v2";
+const SYNC_KEY = "klassekart-syncnavn";
+const API = "/api/archive";
+const remote = {ref: null, mode: "local", dirty: false, lastJson: "", writing: false, failed: false};
+const net = {on: false, id: null, lastJson: "", timer: null, busy: false};
+let saveTimer = null;
+function readLocal(){ try { const t = localStorage.getItem(LS_KEY); return t ? JSON.parse(t) : null; } catch (e){ return null; } }
+function writeLocal(){ try { localStorage.setItem(LS_KEY, JSON.stringify(store)); } catch (e){} }
+const SAVE_TEXT = {
+  saved: "Lagret på kontoen din",
+  saving: "Lagrer …",
+  loading: "Henter arkivet …",
+  slow: "Får ikke kontakt med lagringen ennå. Endringer lagres i nettleseren.",
+  local: "Lagres i denne nettleseren",
+  readonly: "Du kan ikke lagre på denne siden. Endringer lagres i nettleseren.",
+  error: "Kunne ikke lagre. Endringene ligger i nettleseren.",
+  netsaved: "Synket til alle PC-ene dine",
+  neterror: "Får ikke kontakt med synk nå. Endringene ligger i nettleseren."
+};
+function setSave(s){ $("#saveState").dataset.s = s; $("#saveText").textContent = SAVE_TEXT[s] || ""; }
+
+function persist(){
+  delete store.example;
+  remote.dirty = true;
+  writeLocal();
+  if (remote.mode === "db"){
+    setSave("saving");
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(flushSave, 700);
+  } else if (net.on && net.id){
+    setSave("saving");
+    clearTimeout(net.timer);
+    net.timer = setTimeout(netPush, 800);
+  } else if (!remote.ref) setSave("local");
+}
+async function flushSave(retry){
+  if (!remote.ref || remote.mode !== "db" || !remote.dirty) return;
+  if (remote.writing){ clearTimeout(saveTimer); saveTimer = setTimeout(flushSave, 400); return; }
+  remote.writing = true;
+  const json = JSON.stringify(store);
+  let ok = true;
+  try {
+    await remote.ref.set({json, savedAt: new Date().toISOString()});
+    remote.lastJson = json;
+    if (JSON.stringify(store) === json) remote.dirty = false;
+  } catch (e){
+    ok = false;
+    const code = e && e.code;
+    if (code === "unavailable" && !retry){
+      remote.writing = false;
+      setTimeout(() => flushSave(true), 800 + Math.random() * 1200);
+      return;
+    }
+    if (code === "invalid_argument"){ remote.mode = "local"; setSave("readonly"); }
+    else if (code === "quota_exceeded"){ setSave("error"); toast("Lagringsplassen er full. Slett noen gamle kart i historikken."); }
+    else setSave("error");
+  }
+  remote.writing = false;
+  if (ok){
+    setSave(remote.dirty ? "saving" : "saved");
+    if (remote.dirty){ clearTimeout(saveTimer); saveTimer = setTimeout(flushSave, 700); }
+  }
+}
+/* ---------- Synk mellom PC-er (Netlify) ---------- */
+function cleanSyncId(v){ return (v || "").toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40); }
+async function initNetlify(){
+  setSave("local");
+  if (!/^https?:$/.test(location.protocol)) return;
+  // Synk krever en server-del (/api/archive). Vis bare synk-valget hvis den finnes.
+  let backend = false;
+  try {
+    const r = await fetch(API + "?id=__probe__", {cache: "no-store"});
+    const ct = (r.headers.get("content-type") || "");
+    backend = r.ok && ct.indexOf("text/html") === -1;
+  } catch (e){ backend = false; }
+  if (!backend){ net.on = false; renderSync(); return; }
+  net.on = true;
+  const saved = localStorage.getItem(SYNC_KEY);
+  if (saved){ net.id = cleanSyncId(saved); netPull(); }
+  renderSync();
+}
+async function netPull(){
+  if (!net.on || !net.id) return;
+  setSave("loading");
+  try {
+    const r = await fetch(API + "?id=" + encodeURIComponent(net.id), {cache: "no-store"});
+    const t = r.ok ? await r.text() : "";
+    if (t && t.trim()){
+      const incoming = JSON.parse(t);
+      store = normalizeStore(incoming);
+      net.lastJson = JSON.stringify(store);
+      undoStack.length = 0; selected = null;
+      renderAll();
+      setSave("netsaved");
+    } else {
+      net.lastJson = "";
+      if (!store.example) netPush(); else setSave("netsaved");
+    }
+  } catch (e){ setSave("neterror"); }
+}
+async function netPush(){
+  if (!net.on || !net.id || net.busy) return;
+  const json = JSON.stringify(store);
+  if (json === net.lastJson){ setSave("netsaved"); return; }
+  net.busy = true; setSave("saving");
+  try {
+    const r = await fetch(API + "?id=" + encodeURIComponent(net.id), {method: "POST", headers: {"content-type": "application/json"}, body: json});
+    if (!r.ok) throw new Error("http " + r.status);
+    net.lastJson = json; setSave("netsaved");
+  } catch (e){ setSave("neterror"); }
+  net.busy = false;
+  if (JSON.stringify(store) !== net.lastJson){ clearTimeout(net.timer); net.timer = setTimeout(netPush, 800); }
+}
+function renderSync(){
+  const box = $("#syncBox"); if (!box) return;
+  if (!net.on){ box.hidden = true; return; }
+  box.hidden = false; box.replaceChildren();
+  box.append(el("p", {class: "help", style: "margin:0 0 8px"},
+    net.id ? "Arkivet synkes mellom PC-ene dine under navnet «" + net.id + "». Skriv samme navn på de andre PC-ene dine for å se det samme arkivet."
+           : "Vil du at arkivet skal følge deg mellom PC-er? Velg et navn (for eksempel fornavnet ditt) og skriv det samme på hver PC."));
+  const inp = el("input", {type: "text", id: "syncName", placeholder: "for eksempel lise", value: net.id || "", style: "flex:1 1 140px", maxlength: "40"});
+  inp.addEventListener("keydown", e => { if (e.key === "Enter") $("#btnSync").click(); });
+  const connect = () => {
+    const v = cleanSyncId(inp.value);
+    if (!v){ toast("Skriv et navn først."); inp.focus(); return; }
+    net.id = v; net.lastJson = ""; localStorage.setItem(SYNC_KEY, v);
+    updatePrivacyNote(); renderSync(); netPull();
+    toast("Arkivet synkes nå under navnet «" + v + "».");
+  };
+  box.append(el("div", {class: "row"},
+    inp,
+    el("button", {class: "btn small primary", id: "btnSync", type: "button", onclick: connect}, net.id ? "Bytt navn" : "Koble til")
+  ));
+  if (net.id) box.append(el("button", {class: "btn small ghost", type: "button", onclick: () => {
+    net.id = null; localStorage.removeItem(SYNC_KEY); updatePrivacyNote(); renderSync(); setSave("local");
+  }}, "Koble fra (bare denne PC-en)"));
+}
+function updatePrivacyNote(){
+  const n = $("#privacyNote"); if (!n) return;
+  n.textContent = (net.on && net.id)
+    ? "Arkivet synkes mellom PC-ene dine under navnet «" + net.id + "». Elevnavnene lagres da på serveren, ikke bare i nettleseren."
+    : "Elevlistene lagres bare i denne nettleseren og sendes ikke noe sted.";
+}
+async function initRemote(){
+  if (!(window.claude && typeof window.claude.use === "function")){ initNetlify(); return; }
+  let db = null, user = null, uid = null;
+  try { [db, user] = await Promise.all([window.claude.use("db"), window.claude.use("user")]); } catch (e){}
+  if (!db || !user) return;
+  try { uid = await user.id(); } catch (e){}
+  if (!uid) return;
+  try { remote.ref = db.doc("data/users/" + uid + "/klassekart"); } catch (e){ return; }
+  $("#privacyNote").textContent = "Elevlistene lagres privat på kontoen din. Om du deler siden, ser andre bare sine egne klasser.";
+  setSave("loading");
+  let first = true, confirmed = false;
+  const timer = setTimeout(() => { if (!confirmed) setSave("slow"); }, 10000);
+  remote.ref.onSnapshot(snap => {
+    if (snap.metadata.hasPendingWrites) return;
+    if (!snap.metadata.fromCache){ confirmed = true; clearTimeout(timer); }
+    const wasFirst = first; first = false;
+    if (snap.exists){
+      const json = (snap.data() || {}).json;
+      if (typeof json === "string" && json !== remote.lastJson && !remote.dirty){
+        try { store = normalizeStore(JSON.parse(json)); remote.lastJson = json; undoStack.length = 0; selected = null; renderAll(); } catch (e){}
+      }
+    } else if (wasFirst && !store.example){
+      remote.dirty = true; // finnes lokalt fra før: last opp
+    }
+    remote.mode = "db";
+    if (remote.dirty){ setSave("saving"); clearTimeout(saveTimer); saveTimer = setTimeout(flushSave, 300); }
+    else if (confirmed) setSave("saved");
+  }, () => { clearTimeout(timer); remote.mode = "local"; setSave("error"); });
+}
+
+/* ---------- Mutations ---------- */
+function snapshotSeats(){ const c = cur(); return {id: c.id, seats: Object.assign({}, c.seats), locked: c.locked.slice(), layout: JSON.parse(JSON.stringify(c.layout))}; }
+function pushUndo(){ undoStack.push(snapshotSeats()); if (undoStack.length > 30) undoStack.shift(); }
+function undo(){
+  const c = cur();
+  while (undoStack.length){
+    const s = undoStack.pop();
+    if (s.id !== c.id) continue;
+    c.seats = s.seats; c.locked = s.locked; c.layout = s.layout;
+    selected = null; commit(true); return;
+  }
+}
+function commit(full){
+  const c = cur();
+  Object.assign(c, normalizeClass(c));
+  persist();
+  if (full) renderAll(); else { renderChart(); renderRules(); renderHistory(); updateLayoutLabels(); }
+}
+function setSeat(k, v){ const c = cur(); if (v) c.seats[k] = v; else delete c.seats[k]; }
+function move(from, to){
+  const c = cur();
+  if (to.kind === "seat" && c.locked.includes(to.key)){ toast("Plassen er låst. Lås den opp for å flytte."); return; }
+  if (from.kind === "seat" && c.locked.includes(from.key)){ toast("Plassen er låst. Lås den opp for å flytte."); return; }
+  pushUndo();
+  if (from.kind === "seat" && to.kind === "seat"){
+    const a = c.seats[from.key], b = c.seats[to.key];
+    setSeat(to.key, a); setSeat(from.key, b);
+  } else if (from.kind === "chip" && to.kind === "seat"){
+    setSeat(to.key, from.name);
+  } else if (from.kind === "seat" && to.kind === "pool"){
+    setSeat(from.key, null);
+  }
+  selected = null;
+  commit();
+}
+
+/* ---------- Rendering ---------- */
+function el(tag, attrs, ...kids){
+  const e = document.createElement(tag);
+  for (const a in (attrs || {})){
+    const v = attrs[a];
+    if (a === "class") e.className = v;
+    else if (a === "html") e.innerHTML = v;
+    else if (a.startsWith("on")) e.addEventListener(a.slice(2), v);
+    else if (v !== false && v != null) e.setAttribute(a, v === true ? "" : v);
+  }
+  for (const k of kids) if (k != null) e.append(k);
+  return e;
+}
+function trackInfo(L){
+  const rowHas = Array(L.R).fill(false), colHas = Array(L.C).fill(false);
+  for (const k of L.desks){ const [r, c] = parseKey(k); if (r < L.R && c < L.C){ rowHas[r] = true; colHas[c] = true; } }
+  return {rowHas, colHas};
+}
+function displayOrder(c, full){
+  const L = c.layout;
+  let rows = [...Array(L.R).keys()], cols = [...Array(L.C).keys()];
+  if (!full && L.desks.length){
+    const rs = L.desks.map(k => parseKey(k)[0]), cs = L.desks.map(k => parseKey(k)[1]);
+    const r0 = Math.min(...rs), r1 = Math.max(...rs), c0 = Math.min(...cs), c1 = Math.max(...cs);
+    rows = rows.filter(r => r >= r0 && r <= r1); cols = cols.filter(x => x >= c0 && x <= c1);
+  }
+  if (c.flipped){ rows.reverse(); cols.reverse(); }
+  return {rows, cols};
+}
+function unplacedStudents(c){ const s = new Set(Object.values(c.seats)); return c.students.filter(n => !s.has(n)); }
+
+let dragFrom = null;
+function renderChart(){
+  const c = cur(), L = c.layout, grid = $("#grid");
+  const {rowHas, colHas} = trackInfo(L), {rows, cols} = displayOrder(c, editMode);
+  const deskSet = new Set(L.desks), lockSet = new Set(c.locked);
+  const {issues, flags} = analyze(c);
+  $("#room").classList.toggle("flipped", !!c.flipped);
+  grid.classList.toggle("editing", editMode);
+  grid.classList.toggle("paint", editMode);
+  if (editMode){
+    renderPaintGrid(c, rows, cols, deskSet);
+    renderPool(c); renderSummary(c, issues);
+    return;
+  }
+  grid.style.width = "";
+  const gapW = "24px", gapH = "16px";
+  grid.style.gridTemplateColumns = cols.map(ci => colHas[ci] ? "minmax(58px,128px)" : gapW).join(" ");
+  grid.style.gridTemplateRows = rows.map(ri => rowHas[ri] ? "minmax(60px,auto)" : gapH).join(" ");
+  grid.replaceChildren();
+  for (const ri of rows) for (const ci of cols){
+    const k = key(ri, ci);
+    if (!deskSet.has(k)){
+      if (editMode) grid.append(el("button", {class: "cell-add", type: "button", "aria-label": "Sett inn pult", title: "Sett inn pult", onclick: () => toggleDesk(k)}, "+"));
+      else grid.append(el("div", {"aria-hidden": "true"}));
+      continue;
+    }
+    const name = c.seats[k], locked = lockSet.has(k), f = flags[k];
+    const cls = ["desk"];
+    if (!name) cls.push("empty");
+    if (locked) cls.push("locked");
+    if (f) cls.push("flag-" + f.level);
+    if (selected && selected.kind === "seat" && selected.key === k) cls.push("selected");
+    const label = (name || "Tom pult") + (locked ? ", låst" : "") + (f ? ". " + f.msgs.join(". ") : "");
+    const d = el("div", {class: cls.join(" "), tabindex: "0", role: "button", "aria-label": label, title: f ? f.msgs.join("\n") : (editMode ? "Fjern pulten" : ""), draggable: (!editMode && name && !locked) ? "true" : false});
+    d.append(el("span", {}, name || (editMode ? "" : "ledig")));
+    if (!editMode){
+      d.append(el("button", {class: "lock", type: "button", html: locked ? ICON_LOCK : ICON_UNLOCK, "aria-label": locked ? "Lås opp plassen" : "Lås plassen", title: locked ? "Lås opp plassen" : (name ? "Lås " + name + " til denne plassen" : "Hold pulten ledig"), onclick: ev => { ev.stopPropagation(); toggleLock(k); }}));
+    }
+    d.addEventListener("click", () => editMode ? toggleDesk(k) : seatClick(k));
+    d.addEventListener("keydown", ev => { if ((ev.key === "Enter" || ev.key === " ") && ev.target === d){ ev.preventDefault(); d.click(); } });
+    if (!editMode){
+      d.addEventListener("dragstart", ev => { dragFrom = {kind: "seat", key: k}; d.classList.add("dragging"); try { ev.dataTransfer.setData("text/plain", name); ev.dataTransfer.effectAllowed = "move"; } catch (e){} });
+      d.addEventListener("dragend", () => { d.classList.remove("dragging"); dragFrom = null; });
+      d.addEventListener("dragover", ev => { if (dragFrom && !locked){ ev.preventDefault(); d.classList.add("over"); } });
+      d.addEventListener("dragleave", () => d.classList.remove("over"));
+      d.addEventListener("drop", ev => { ev.preventDefault(); d.classList.remove("over"); if (dragFrom && !(dragFrom.kind === "seat" && dragFrom.key === k)) move(dragFrom, {kind: "seat", key: k}); dragFrom = null; });
+    }
+    grid.append(d);
+  }
+  renderPool(c);
+  renderSummary(c, issues);
+}
+/* Tegn-selv-rutenett: alle ruter like store, klikk eller dra for å markere pulter */
+let paint = null; // {add:boolean, touched:Set}
+function renderPaintGrid(c, rows, cols, deskSet){
+  const grid = $("#grid");
+  grid.style.gridTemplateColumns = "repeat(" + cols.length + ", minmax(26px, 1fr))";
+  grid.style.gridTemplateRows = "repeat(" + rows.length + ", minmax(30px, 44px))";
+  grid.style.width = "min(100%, " + (cols.length * 60) + "px)";
+  grid.replaceChildren();
+  for (const ri of rows) for (const ci of cols){
+    const k = key(ri, ci), on = deskSet.has(k), name = c.seats[k];
+    grid.append(el("div", {class: "cell" + (on ? " on" : ""), "data-key": k, tabindex: "0", role: "button", title: on ? (name ? name + " (dra for å fjerne)" : "Pult (dra for å fjerne)") : "Tom rute", "aria-label": (on ? "Pult" : "Tom rute") + (name ? ", " + name : "") + ", rad " + (ri + 1) + ", kolonne " + (ci + 1)}, name || ""));
+  }
+  updatePaintCount();
+}
+function updatePaintCount(){ const n = cur().layout.desks.length, s = cur().students.length; $("#paintCount").textContent = n + (n === 1 ? " pult" : " pulter") + (s ? " / " + s + " elever" : ""); }
+function paintCell(cell){
+  if (!cell || !paint) return;
+  const k = cell.dataset.key; if (!k || paint.touched.has(k)) return;
+  paint.touched.add(k);
+  const L = cur().layout, i = L.desks.indexOf(k);
+  if (paint.add && i < 0){ L.desks.push(k); cell.classList.add("on"); }
+  if (!paint.add && i >= 0){ L.desks.splice(i, 1); cell.classList.remove("on"); cell.textContent = ""; }
+  updatePaintCount();
+}
+const gridEl = $("#grid");
+gridEl.addEventListener("pointerdown", ev => {
+  if (!editMode) return;
+  const cell = ev.target.closest(".cell"); if (!cell) return;
+  ev.preventDefault();
+  pushUndo();
+  paint = {add: !cell.classList.contains("on"), touched: new Set()};
+  paintCell(cell);
+});
+gridEl.addEventListener("pointermove", ev => {
+  if (!paint) return;
+  const t = document.elementFromPoint(ev.clientX, ev.clientY);
+  paintCell(t && t.closest ? t.closest(".cell") : null);
+});
+const endPaint = () => {
+  if (!paint) return;
+  const changed = paint.touched.size > 0; paint = null;
+  if (changed){ cur().layout.type = "custom"; commit(); }
+};
+document.addEventListener("pointerup", endPaint);
+document.addEventListener("pointercancel", endPaint);
+gridEl.addEventListener("keydown", ev => {
+  const cell = ev.target.closest && ev.target.closest(".cell");
+  if (!cell || !editMode || (ev.key !== "Enter" && ev.key !== " ")) return;
+  ev.preventDefault(); pushUndo(); paint = {add: !cell.classList.contains("on"), touched: new Set()}; paintCell(cell); endPaint();
+});
+
+function renderPool(c){
+  const list = $("#poolList"), un = unplacedStudents(c);
+  list.replaceChildren();
+  $("#poolLabel").textContent = un.length ? "Uten plass (" + un.length + ")" : "Uten plass";
+  if (!un.length) list.append(el("span", {class: "empty-note"}, "Alle elevene har plass."));
+  for (const n of un){
+    const isSel = selected && selected.kind === "chip" && selected.name === n;
+    const b = el("button", {class: "pchip" + (isSel ? " selected" : ""), type: "button", draggable: "true", title: "Klikk og velg en pult, eller dra"}, n);
+    b.addEventListener("click", () => { selected = isSel ? null : {kind: "chip", name: n}; renderChart(); });
+    b.addEventListener("dragstart", ev => { dragFrom = {kind: "chip", name: n}; try { ev.dataTransfer.setData("text/plain", n); } catch (e){} });
+    b.addEventListener("dragend", () => { dragFrom = null; });
+    list.append(b);
+  }
+}
+function renderSummary(c, issues){
+  const desks = c.layout.desks.length, n = c.students.length, seated = Object.keys(c.seats).length;
+  $("#stats").innerHTML = "";
+  $("#stats").append(el("b", {}, String(n)), " elever · ", el("b", {}, String(desks)), " pulter · ", el("b", {}, String(seated)), " plassert");
+  const box = $("#issues"); box.replaceChildren();
+  if (!n){ box.append(el("div", {class: "pill info"}, "Start med å legge inn elevene under «Elever».")); return; }
+  if (n > desks) box.append(el("div", {class: "pill warn", html: ICON_ALERT}, "Det mangler " + (n - desks) + (n - desks === 1 ? " pult" : " pulter") + " til alle elevene."));
+  if (!seated){ box.append(el("div", {class: "pill info"}, "Trykk «Lag nytt kart» for å fordele elevene.")); return; }
+  const real = issues.filter(i => i.level !== "info");
+  if (!real.length) box.append(el("div", {class: "pill ok", html: ICON_OK}, "Alle regler er oppfylt"));
+  for (const i of issues) box.append(el("div", {class: "pill " + i.level, html: i.level === "info" ? "" : ICON_ALERT}, i.text));
+}
+
+function renderClassSelect(){
+  const s = $("#classSelect"); s.replaceChildren();
+  for (const c of store.classes) s.append(el("option", {value: c.id, selected: c.id === store.activeId}, c.name));
+  $("#btnDeleteClass").disabled = store.classes.length < 1;
+}
+function renderStudents(){
+  const c = cur();
+  $("#names").value = c.students.join("\n");
+  $("#dupWarn").hidden = true;
+  updateCount();
+}
+function updateCount(){ const n = cur().students.length; $("#studentCount").textContent = n + (n === 1 ? " elev" : " elever"); }
+function renderLayoutForm(){
+  const L = cur().layout;
+  $("#layoutRows").value = L.R; $("#layoutPer").value = L.C;
+  updateLayoutLabels();
+}
+function updateLayoutLabels(){
+  const L = cur().layout, n = cur().students.length, d = L.desks.length;
+  $("#layoutPreview").textContent = L.R + " × " + L.C + " ruter med " + d + (d === 1 ? " pult" : " pulter") + (n ? " til " + n + " elever." : ".") + (n > d ? " Det mangler " + (n - d) + "." : "");
+}
+function fillSelect(sel, names, keep){
+  const old = keep ? sel.value : "";
+  sel.replaceChildren(el("option", {value: ""}, "Velg elev"));
+  for (const n of names) sel.append(el("option", {value: n}, n));
+  if (old && names.includes(old)) sel.value = old;
+}
+function renderRules(){
+  const c = cur(), names = c.students.slice().sort(coll);
+  for (const id of ["apartA", "apartB", "togA", "togB", "frontSel"]) fillSelect($("#" + id), names, true);
+  const pairList = (box, list, cls, sep) => {
+    box.replaceChildren();
+    if (!list.length) box.append(el("span", {class: "empty-note"}, "Ingen ennå"));
+    list.forEach((p, i) => box.append(el("span", {class: "chip " + cls}, p[0] + sep + p[1], el("button", {type: "button", "aria-label": "Fjern regelen " + p[0] + " og " + p[1], onclick: () => { list.splice(i, 1); commit(); }}, "×"))));
+  };
+  pairList($("#apartList"), c.rules.apart, "apart", " ✕ ");
+  pairList($("#togList"), c.rules.together, "together", " + ");
+  const fl = $("#frontList"); fl.replaceChildren();
+  if (!c.rules.front.length) fl.append(el("span", {class: "empty-note"}, "Ingen ennå"));
+  c.rules.front.forEach((n, i) => fl.append(el("span", {class: "chip"}, n, el("button", {type: "button", "aria-label": "Fjern " + n + " fra foran-listen", onclick: () => { c.rules.front.splice(i, 1); commit(); }}, "×"))));
+  $("#frontRows").value = c.rules.frontRows;
+  $("#neighborMode").value = c.rules.neighbor;
+  $("#avoidRepeat").checked = !!c.rules.avoidRepeat;
+  $("#repeatDepth").value = c.rules.repeatDepth;
+}
+const fmtDate = iso => { try { return new Date(iso).toLocaleDateString("nb-NO", {day: "numeric", month: "long", year: "numeric"}); } catch (e){ return iso; } };
+const fmtTime = iso => { try { return new Date(iso).toLocaleTimeString("nb-NO", {hour: "2-digit", minute: "2-digit"}); } catch (e){ return ""; } };
+const NB_LABEL = {side: "ved siden av", cross: "ved siden av, foran og bak", all: "alle rundt, også på skrå"};
+function historyRules(h){
+  const r = h.rules;
+  const wrap = el("details", {class: "rulesum"});
+  if (!r){ wrap.append(el("summary", {}, "Regler ikke lagret for dette kartet")); return wrap; }
+  const bits = [];
+  if (r.apart && r.apart.length) bits.push(r.apart.length + (r.apart.length === 1 ? " skilt par" : " skilte par"));
+  if (r.together && r.together.length) bits.push(r.together.length + (r.together.length === 1 ? " par sammen" : " par sammen"));
+  if (r.front && r.front.length) bits.push(r.front.length + " foran");
+  wrap.append(el("summary", {}, "Regler: " + (bits.length ? bits.join(" · ") : "ingen")));
+  const body = el("div", {class: "rulebody"});
+  if (r.apart && r.apart.length) body.append(el("div", {}, el("b", {}, "Skal ikke sitte sammen: "), r.apart.map(p => p[0] + " ✕ " + p[1]).join(", ")));
+  if (r.together && r.together.length) body.append(el("div", {}, el("b", {}, "Bør sitte sammen: "), r.together.map(p => p[0] + " + " + p[1]).join(", ")));
+  if (r.front && r.front.length) body.append(el("div", {}, el("b", {}, "Må sitte foran: "), r.front.join(", ") + " (de " + (r.frontRows || 2) + " første radene)"));
+  body.append(el("div", {}, el("b", {}, "Naboer: "), NB_LABEL[r.neighbor] || r.neighbor || "ved siden av, foran og bak"));
+  if (r.avoidRepeat) body.append(el("div", {}, "Unngikk naboer fra de " + (r.repeatDepth || 2) + " foregående kartene."));
+  wrap.append(body);
+  return wrap;
+}
+function renderHistory(){
+  const c = cur(), ul = $("#histList"); ul.replaceChildren();
+  if (!c.history.length){ ul.append(el("li", {class: "empty-note", style: "border-style:dashed"}, "Tomt ennå. Trykk «Lag nytt kart», så havner kartet her.")); return; }
+  c.history.forEach((h, i) => {
+    const n = Object.keys(h.seats).length;
+    ul.append(el("li", {},
+      el("div", {class: "toprow"},
+        el("span", {class: "when"}, fmtDate(h.date), el("small", {}, "kl. " + fmtTime(h.date) + " · " + n + " elever" + (i === 0 ? " · siste" : ""))),
+        el("button", {class: "btn small primary", type: "button", onclick: () => viewArchive(i)}, "Vis"),
+        el("button", {class: "btn small", type: "button", onclick: () => restoreHistory(i)}, "Hent fram"),
+        el("button", {class: "btn small ghost danger", type: "button", "aria-label": "Slett kartet fra " + fmtDate(h.date), onclick: () => { c.history.splice(i, 1); commit(); }}, "Slett")
+      ),
+      historyRules(h)
+    ));
+  });
+}
+function renderToggles(){
+  const c = cur();
+  $("#btnFlip").setAttribute("aria-pressed", c.flipped ? "true" : "false");
+  $("#btnEdit").setAttribute("aria-pressed", editMode ? "true" : "false");
+  $("#editBar").hidden = !editMode;
+  $("#btnUndo").disabled = !undoStack.some(s => s.id === c.id);
+}
+function renderAll(){
+  renderClassSelect(); renderStudents(); renderLayoutForm(); renderRules(); renderHistory(); renderChart(); renderToggles(); renderSync();
+}
+const _renderChart = renderChart;
+renderChart = function(){ _renderChart(); renderToggles(); };
+
+/* ---------- Actions ---------- */
+function seatClick(k){
+  const c = cur();
+  if (c.locked.includes(k)){ toast("Plassen er låst. Trykk på hengelåsen for å låse opp."); return; }
+  if (!selected){
+    if (c.seats[k]){ selected = {kind: "seat", key: k}; renderChart(); }
+    return;
+  }
+  if (selected.kind === "seat" && selected.key === k){ selected = null; renderChart(); return; }
+  move(selected, {kind: "seat", key: k});
+}
+function toggleLock(k){
+  const c = cur();
+  pushUndo();
+  const i = c.locked.indexOf(k);
+  if (i >= 0) c.locked.splice(i, 1); else c.locked.push(k);
+  if (selected && selected.kind === "seat" && selected.key === k) selected = null;
+  commit();
+}
+function toggleDesk(k){
+  const c = cur(), L = c.layout;
+  pushUndo();
+  const i = L.desks.indexOf(k);
+  if (i >= 0){ L.desks.splice(i, 1); delete c.seats[k]; }
+  else L.desks.push(k);
+  L.type = "custom";
+  commit();
+}
+function resizeGrid(dr, dc){
+  const c = cur(), L = c.layout;
+  pushUndo();
+  if (dr > 0) L.R++;
+  if (dr < 0 && L.R > 1){ L.R--; L.desks = L.desks.filter(k => parseKey(k)[0] < L.R); }
+  if (dc > 0) L.C++;
+  if (dc < 0 && L.C > 1){ L.C--; L.desks = L.desks.filter(k => parseKey(k)[1] < L.C); }
+  L.type = "custom";
+  commit(); renderLayoutForm();
+}
+function generate(){
+  const c = cur();
+  if (!c.students.length){ toast("Legg inn elevene først."); showTab("elever"); return; }
+  if (!c.layout.desks.length){ toast("Det er ingen pulter i rommet. Trykk «Tegn pulter» og marker dem."); showTab("pulter"); return; }
+  pushUndo();
+  c.seats = solve(c);
+  selected = null;
+  archiveEntry(c);
+  commit();
+  const real = analyze(c).issues.filter(i => i.level !== "info");
+  if (real.length) toast("Kartet er lagt i arkivet. Fant ingen plassering som oppfyller alle reglene — se merknadene over kartet.");
+  else toast("Kartet er lagt i arkivet.");
+}
+function archiveEntry(c){
+  if (!Object.keys(c.seats).length) return;
+  c.history.unshift({id: newId(), date: new Date().toISOString(), layout: {type: "custom", R: c.layout.R, C: c.layout.C, desks: c.layout.desks.slice()}, seats: Object.assign({}, c.seats), rules: JSON.parse(JSON.stringify(c.rules))});
+  c.history = c.history.slice(0, 40);
+}
+function restoreHistory(i){
+  const c = cur(), h = c.history[i];
+  pushUndo();
+  c.layout = JSON.parse(JSON.stringify(h.layout));
+  c.seats = Object.assign({}, h.seats);
+  c.locked = [];
+  selected = null;
+  commit(true);
+  showTab("elever");
+  toast("Kartet fra " + fmtDate(h.date) + " er hentet fram.");
+}
+async function viewArchive(i){
+  const c = cur(), h = c.history[i];
+  if (!h) return;
+  const body = el("div", {});
+  const imgWrap = el("div", {style: "overflow-x:auto;margin-bottom:12px"});
+  imgWrap.append(el("p", {class: "help", style: "margin:0 0 8px"}, "Lager bilde av kartet …"));
+  body.append(imgWrap);
+  const rules = historyRules(h); rules.open = true;
+  body.append(rules);
+  body.append(el("div", {class: "row", style: "margin-top:12px"},
+    el("button", {class: "btn small", type: "button", onclick: () => { closeModal(); restoreHistory(i); }}, "Hent fram for å endre")
+  ));
+  openModal({title: "Kart fra " + fmtDate(h.date), body, okText: "Lukk", noCancel: true, wide: true});
+  try {
+    const cv = await renderCanvas({name: c.name, layout: h.layout, seats: h.seats, flipped: false, date: h.date});
+    imgWrap.replaceChildren(el("img", {alt: "Klassekartet fra " + fmtDate(h.date), src: cv.toDataURL("image/png"), style: "display:block"}));
+  } catch (e){ imgWrap.replaceChildren(el("p", {class: "help", style: "margin:0"}, "Kunne ikke lage bilde av kartet.")); }
+}
+
+/* ---------- Export ---------- */
+function chartText(c){
+  const L = c.layout, deskSet = new Set(L.desks), {rowHas, colHas} = trackInfo(L), {rows, cols} = displayOrder(c);
+  const lines = [];
+  for (const ri of rows){
+    if (!rowHas[ri]){ continue; }
+    const parts = []; let group = [];
+    for (const ci of cols){
+      const k = key(ri, ci);
+      if (deskSet.has(k)) group.push(c.seats[k] || "(ledig)");
+      else if (group.length){ parts.push(group.join(" | ")); group = []; }
+    }
+    if (group.length) parts.push(group.join(" | "));
+    if (parts.length) lines.push(parts.join("      "));
+  }
+  const head = [c.name + " – " + fmtDate(new Date().toISOString()), ""];
+  return c.flipped ? head.concat(lines, ["", "[ TAVLE ]"]).join("\n") : head.concat(["[ TAVLE ]", ""], lines).join("\n");
+}
+async function renderCanvas(src){
+  try { await document.fonts.ready; } catch (e){}
+  const c = src || cur(), L = c.layout, deskSet = new Set(L.desks), {rowHas, colHas} = trackInfo(L), {rows, cols} = displayOrder(c);
+  const DW = 176, DH = 72, GW = 40, GH = 26, G = 12, PAD = 56, TITLE = 64, BOARD = 44, BGAP = 34, S = 2;
+  const xs = [], ws = []; let x = 0;
+  for (const ci of cols){ const w = colHas[ci] ? DW : GW; xs.push(x); ws.push(w); x += w + G; }
+  const gridW = Math.max(0, x - G);
+  const ys = [], hs = []; let y = 0;
+  for (const ri of rows){ const h = rowHas[ri] ? DH : GH; ys.push(y); hs.push(h); y += h + G; }
+  const gridH = Math.max(0, y - G);
+  const W = Math.max(gridW, 640) + PAD * 2, H = PAD + TITLE + BOARD + BGAP + gridH + PAD;
+  const cv = document.createElement("canvas"); cv.width = W * S; cv.height = H * S;
+  const g = cv.getContext("2d"); g.scale(S, S);
+  g.fillStyle = "#ffffff"; g.fillRect(0, 0, W, H);
+  g.fillStyle = "#17201d"; g.textBaseline = "alphabetic"; g.textAlign = "left";
+  g.font = '750 30px "Bricolage Grotesque", sans-serif';
+  g.fillText(c.name || "Klassekart", PAD, PAD + 28);
+  g.fillStyle = "#5b6762"; g.font = '400 16px "Atkinson Hyperlegible", sans-serif'; g.textAlign = "right";
+  g.fillText(fmtDate(c.date || new Date().toISOString()), W - PAD, PAD + 26);
+  const ox = (W - gridW) / 2;
+  const rr = (x, y, w, h, r) => { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); };
+  const top = PAD + TITLE;
+  const gridTop = c.flipped ? top : top + BOARD + BGAP;
+  const boardTop = c.flipped ? top + gridH + BGAP : top;
+  const bw = Math.max(240, Math.min(gridW * 0.6, 520));
+  rr((W - bw) / 2, boardTop, bw, BOARD - 6, 6); g.fillStyle = "#22423a"; g.fill();
+  g.fillStyle = "#e7efe9"; g.textAlign = "center"; g.textBaseline = "middle"; g.font = '700 15px "Bricolage Grotesque", sans-serif';
+  g.fillText("T A V L E", W / 2, boardTop + (BOARD - 6) / 2 + 1);
+  rows.forEach((ri, yi) => cols.forEach((ci, xi) => {
+    const k = key(ri, ci); if (!deskSet.has(k)) return;
+    const dx = ox + xs[xi], dy = gridTop + ys[yi], name = c.seats[k];
+    rr(dx, dy + 3, DW, DH, 9); g.fillStyle = name ? "#cdb68a" : "#ffffff"; g.fill();
+    rr(dx, dy, DW, DH, 9); g.fillStyle = name ? "#f1e4c9" : "#ffffff"; g.fill();
+    g.lineWidth = 1.5; g.strokeStyle = "#cdb68a"; if (!name) g.setLineDash([6, 4]); g.stroke(); g.setLineDash([]);
+    if (name){
+      g.fillStyle = "#2b2418"; g.textAlign = "center"; g.textBaseline = "middle";
+      let fs = 22; g.font = '700 ' + fs + 'px "Atkinson Hyperlegible", sans-serif';
+      while (g.measureText(name).width > DW - 16 && fs > 13){ fs--; g.font = '700 ' + fs + 'px "Atkinson Hyperlegible", sans-serif'; }
+      if (g.measureText(name).width > DW - 16 && name.includes(" ")){
+        const i = name.lastIndexOf(" "); g.fillText(name.slice(0, i), dx + DW / 2, dy + DH / 2 - fs * 0.6); g.fillText(name.slice(i + 1), dx + DW / 2, dy + DH / 2 + fs * 0.6);
+      } else g.fillText(name, dx + DW / 2, dy + DH / 2 + 1);
+    }
+  }));
+  return cv;
+}
+const safeName = s => (s || "klassekart").replace(/[^\p{L}\p{N} _-]+/gu, "").trim() || "klassekart";
+async function doExport(kind){
+  const c = cur();
+  if (kind === "text"){
+    const t = chartText(c);
+    try { await navigator.clipboard.writeText(t); toast("Kartet er kopiert som tekst."); }
+    catch (e){ const ta = el("textarea", {readonly: true, style: "min-height:220px;font-family:monospace;font-size:13px"}); ta.value = t; openModal({title: "Kopier kartet", body: ta, okText: "Lukk", noCancel: true}); setTimeout(() => ta.select(), 50); }
+    return;
+  }
+  if (!Object.keys(c.seats).length){ toast("Kartet er tomt. Lag et kart først."); return; }
+  const cv = await renderCanvas();
+  const base = safeName(c.name) + " " + new Date().toISOString().slice(0, 10);
+  let blob;
+  if (kind === "png"){
+    blob = await new Promise(r => cv.toBlob(r, "image/png"));
+  } else {
+    if (!(window.jspdf && window.jspdf.jsPDF)){ toast("PDF er ikke tilgjengelig her. Prøv bilde (PNG)."); return; }
+    const land = cv.width >= cv.height * 0.9;
+    const doc = new window.jspdf.jsPDF({orientation: land ? "landscape" : "portrait", unit: "mm", format: "a4"});
+    const pw = doc.internal.pageSize.getWidth(), ph = doc.internal.pageSize.getHeight(), m = 10;
+    const sc = Math.min((pw - 2 * m) / cv.width, (ph - 2 * m) / cv.height);
+    const w = cv.width * sc, h = cv.height * sc;
+    doc.addImage(cv.toDataURL("image/png"), "PNG", (pw - w) / 2, m, w, h);
+    blob = doc.output("blob");
+  }
+  let dl = null;
+  try { if (window.claude && window.claude.use) dl = await window.claude.use("downloads"); } catch (e){}
+  if (dl){
+    try { await dl.save({filename: base + "." + kind, data: blob}); return; }
+    catch (e){
+      if (e && e.code === "declined") return;
+      if (e && e.code === "rate_limited"){ toast("Vent litt og prøv igjen."); return; }
+    }
+  }
+  if (!window.claude){ // vanlig nettside: last ned direkte
+    const url = URL.createObjectURL(blob), a = el("a", {href: url, download: base + "." + kind});
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000);
+    return;
+  }
+  const img = el("img", {alt: "Klassekartet som bilde", src: cv.toDataURL("image/png")});
+  openModal({title: "Klassekartet", body: el("div", {}, el("p", {class: "help", style: "margin:0 0 10px"}, "Nedlasting er ikke tilgjengelig her. Høyreklikk eller hold på bildet for å lagre eller skrive det ut."), img), okText: "Lukk", noCancel: true});
+}
+
+/* ---------- Modal & toast ---------- */
+let modalOk = null;
+function openModal({title, body, okText, danger, onOk, noCancel, wide}){
+  $("#modalTitle").textContent = title;
+  document.querySelector(".modal").classList.toggle("wide", !!wide);
+  const b = $("#modalBody"); b.replaceChildren(); if (body) b.append(body);
+  const ok = $("#modalOk"); ok.textContent = okText || "OK";
+  ok.classList.toggle("danger", !!danger);
+  ok.style.background = danger ? "var(--danger)" : ""; ok.style.borderColor = danger ? "var(--danger)" : "";
+  $("#modalCancel").hidden = !!noCancel;
+  modalOk = onOk || null;
+  $("#modalBack").hidden = false;
+  setTimeout(() => { const inp = b.querySelector("input"); (inp || ok).focus(); }, 30);
+}
+function closeModal(){ $("#modalBack").hidden = true; modalOk = null; }
+$("#modalCancel").addEventListener("click", closeModal);
+$("#modalOk").addEventListener("click", () => { const f = modalOk; if (f && f() === false) return; closeModal(); });
+$("#modalBack").addEventListener("click", ev => { if (ev.target.id === "modalBack") closeModal(); });
+let toastTimer = null;
+function toast(msg){ const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => t.hidden = true, 3800); }
+
+/* ---------- Tabs ---------- */
+function showTab(name){
+  for (const t of ["elever", "pulter", "regler", "historikk"]){
+    $("#tab-" + t).setAttribute("aria-selected", t === name ? "true" : "false");
+    $("#panel-" + t).hidden = t !== name;
+  }
+}
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => showTab(t.id.slice(4))));
+
+/* ---------- Wiring ---------- */
+$("#classSelect").addEventListener("change", ev => { store.activeId = ev.target.value; selected = null; editMode = false; persist(); renderAll(); });
+function nameInput(value){ const i = el("input", {type: "text", id: "modalName", "aria-label": "Navn på klassen", style: "width:100%"}); i.value = value || ""; i.addEventListener("keydown", e => { if (e.key === "Enter") $("#modalOk").click(); }); return i; }
+$("#btnNewClass").addEventListener("click", () => {
+  const i = nameInput("");
+  openModal({title: "Ny klasse", body: i, okText: "Opprett", onOk: () => {
+    const n = i.value.trim(); if (!n){ i.focus(); return false; }
+    const c = newClass(n, [], cur() && cur().layout); store.classes.push(c); store.activeId = c.id; selected = null; editMode = false;
+    persist(); renderAll(); showTab("elever"); setTimeout(() => $("#names").focus(), 50);
+  }});
+});
+$("#btnRenameClass").addEventListener("click", () => {
+  const c = cur(), i = nameInput(c.name);
+  openModal({title: "Gi klassen nytt navn", body: i, okText: "Lagre", onOk: () => { const n = i.value.trim(); if (!n) return false; c.name = n; persist(); renderClassSelect(); }});
+});
+$("#btnDeleteClass").addEventListener("click", () => {
+  const c = cur();
+  openModal({title: "Slette «" + c.name + "»?", body: el("p", {class: "help", style: "margin:0"}, "Elevlisten, reglene og historikken for klassen blir borte. Dette kan ikke angres."), okText: "Slett klassen", danger: true, onOk: () => {
+    store.classes = store.classes.filter(x => x.id !== c.id);
+    if (!store.classes.length){ const n = newClass("Min klasse", [], c.layout); store.classes.push(n); }
+    store.activeId = store.classes[0].id; selected = null; persist(); renderAll();
+  }});
+});
+
+let namesTimer = null;
+function applyNames(){
+  const c = cur(), text = $("#names").value;
+  const raw = text.includes("\n") ? text.split(/\r?\n/) : text.split(/[;,]/);
+  const seen = new Set(), out = [], dups = [];
+  for (let p of raw){
+    p = p.replace(/\s+/g, " ").trim(); if (!p) continue;
+    const k = p.toLocaleLowerCase("nb");
+    if (seen.has(k)){ dups.push(p); continue; }
+    seen.add(k); out.push(p);
+  }
+  const w = $("#dupWarn");
+  if (dups.length){ w.hidden = false; w.textContent = "Står flere ganger: " + [...new Set(dups)].join(", ") + ". Legg til forbokstav i etternavnet for å skille dem."; }
+  else w.hidden = true;
+  if (JSON.stringify(out) === JSON.stringify(c.students)) return;
+  c.students = out;
+  commit();
+  updateCount(); updateLayoutLabels();
+}
+$("#names").addEventListener("input", () => { clearTimeout(namesTimer); namesTimer = setTimeout(applyNames, 450); });
+$("#names").addEventListener("blur", () => { clearTimeout(namesTimer); applyNames(); });
+$("#btnSortNames").addEventListener("click", () => { const c = cur(); c.students.sort(coll); $("#names").value = c.students.join("\n"); commit(); });
+$("#btnClearNames").addEventListener("click", () => {
+  openModal({title: "Tømme elevlisten?", body: el("p", {class: "help", style: "margin:0"}, "Alle navn, plasser og regler for denne klassen fjernes."), okText: "Tøm listen", danger: true, onOk: () => {
+    const c = cur(); pushUndo(); c.students = []; c.seats = {}; $("#names").value = ""; commit(); updateCount();
+  }});
+});
+
+function setGridSize(){
+  const c = cur(), R = +$("#layoutRows").value, C = +$("#layoutPer").value;
+  if (!R || !C || (R === c.layout.R && C === c.layout.C)) return;
+  pushUndo();
+  c.layout = makeLayout(R, C, c.layout.desks);
+  commit(); renderLayoutForm();
+}
+$("#layoutRows").addEventListener("change", setGridSize);
+$("#layoutPer").addEventListener("change", setGridSize);
+
+function addPair(aSel, bSel, list){
+  const a = $(aSel).value, b = $(bSel).value;
+  if (!a || !b){ toast("Velg to elever."); return; }
+  if (a === b){ toast("Velg to forskjellige elever."); return; }
+  if (list.some(p => (p[0] === a && p[1] === b) || (p[0] === b && p[1] === a))){ toast("Den regelen finnes allerede."); return; }
+  list.push([a, b]); $(aSel).value = ""; $(bSel).value = ""; commit();
+}
+$("#btnAddApart").addEventListener("click", () => addPair("#apartA", "#apartB", cur().rules.apart));
+$("#btnAddTog").addEventListener("click", () => addPair("#togA", "#togB", cur().rules.together));
+$("#btnAddFront").addEventListener("click", () => {
+  const n = $("#frontSel").value, f = cur().rules.front;
+  if (!n){ toast("Velg en elev."); return; }
+  if (!f.includes(n)) f.push(n);
+  $("#frontSel").value = ""; commit();
+});
+$("#frontRows").addEventListener("change", ev => { cur().rules.frontRows = Math.max(1, Math.min(6, +ev.target.value || 1)); commit(); });
+$("#neighborMode").addEventListener("change", ev => { cur().rules.neighbor = ev.target.value; commit(); });
+$("#avoidRepeat").addEventListener("change", ev => { cur().rules.avoidRepeat = ev.target.checked; commit(); });
+$("#repeatDepth").addEventListener("change", ev => { cur().rules.repeatDepth = Math.max(1, Math.min(5, +ev.target.value || 1)); commit(); });
+
+$("#btnGenerate").addEventListener("click", generate);
+$("#btnUndo").addEventListener("click", undo);
+$("#btnClearSeats").addEventListener("click", () => { const c = cur(); if (!Object.keys(c.seats).length) return; pushUndo(); const keep = {}; for (const k of c.locked) if (c.seats[k]) keep[k] = c.seats[k]; c.seats = keep; selected = null; commit(); });
+$("#btnEdit").addEventListener("click", () => { editMode = !editMode; selected = null; renderChart(); });
+$("#btnDrawDesks").addEventListener("click", () => { editMode = true; selected = null; renderChart(); document.getElementById("editBar").scrollIntoView({block: "nearest", behavior: "smooth"}); });
+$("#btnEditDone").addEventListener("click", () => { editMode = false; const c = cur(); if (!Object.keys(c.seats).length && c.students.length && c.layout.desks.length){ c.seats = solve(c); commit(); } renderChart(); renderLayoutForm(); });
+$("#btnClearGrid").addEventListener("click", () => { const c = cur(); if (!c.layout.desks.length) return; pushUndo(); c.layout.desks = []; c.seats = {}; c.locked = []; c.layout.type = "custom"; commit(); });
+$("#btnAddRow").addEventListener("click", () => resizeGrid(1, 0));
+$("#btnDelRow").addEventListener("click", () => resizeGrid(-1, 0));
+$("#btnAddCol").addEventListener("click", () => resizeGrid(0, 1));
+$("#btnDelCol").addEventListener("click", () => resizeGrid(0, -1));
+$("#btnFlip").addEventListener("click", () => { const c = cur(); c.flipped = !c.flipped; persist(); renderChart(); });
+
+const menu = $("#exportMenu"), mbtn = $("#btnExport");
+mbtn.addEventListener("click", ev => { ev.stopPropagation(); menu.hidden = !menu.hidden; mbtn.setAttribute("aria-expanded", menu.hidden ? "false" : "true"); });
+document.addEventListener("click", () => { menu.hidden = true; mbtn.setAttribute("aria-expanded", "false"); });
+menu.querySelectorAll("button").forEach(b => b.addEventListener("click", ev => { ev.stopPropagation(); menu.hidden = true; doExport(b.dataset.export); }));
+
+const pool = $("#pool");
+pool.addEventListener("dragover", ev => { if (dragFrom && dragFrom.kind === "seat"){ ev.preventDefault(); pool.classList.add("over"); } });
+pool.addEventListener("dragleave", () => pool.classList.remove("over"));
+pool.addEventListener("drop", ev => { ev.preventDefault(); pool.classList.remove("over"); if (dragFrom && dragFrom.kind === "seat") move(dragFrom, {kind: "pool"}); dragFrom = null; });
+pool.addEventListener("click", ev => { if (ev.target.closest(".pchip")) return; if (selected && selected.kind === "seat") move(selected, {kind: "pool"}); });
+
+document.addEventListener("keydown", ev => {
+  if (ev.key === "Escape"){
+    if (!$("#modalBack").hidden){ closeModal(); return; }
+    if (selected){ selected = null; renderChart(); }
+    if (editMode){ editMode = false; renderChart(); }
+  }
+  if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "z" && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){ ev.preventDefault(); undo(); }
+});
+
+/* ---------- Start ---------- */
+const local = readLocal();
+store = local ? normalizeStore(local) : exampleStore();
+if (!local) store.example = true;
+renderAll();
+setSave("local");
+initRemote();
+})();
+</script>
+</body>
+</html>
