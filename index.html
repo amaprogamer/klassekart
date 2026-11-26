@@ -68,6 +68,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .classpick{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .classpick label{font-size:13px;color:var(--muted)}
 .savestate{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;min-width:0}
+.savestate[hidden]{display:none}
 .savestate .dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}
 .savestate[data-s="saved"] .dot,.savestate[data-s="ghsaved"] .dot{background:var(--ok)}
 .savestate[data-s="saving"] .dot,.savestate[data-s="loading"] .dot{background:var(--warn)}
@@ -1197,7 +1198,7 @@ function openModal({title, body, okText, danger, onOk, noCancel, wide}){
   const b = $("#modalBody"); b.replaceChildren(); if (body) b.append(body);
   const ok = $("#modalOk"); ok.textContent = okText || "OK";
   ok.classList.toggle("danger", !!danger);
-  ok.style.background = danger ? "var(--danger)" : ""; ok.style.borderColor = danger ? "var(--danger)" : "";
+  ok.style.background = danger ? "var(--danger)" : ""; ok.style.borderColor = danger ? "var(--danger)" : ""; ok.style.color = danger ? "#fff" : "";
   $("#modalCancel").hidden = !!noCancel;
   modalOk = onOk || null;
   $("#modalBack").hidden = false;
