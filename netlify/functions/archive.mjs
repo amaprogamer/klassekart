@@ -33,11 +33,13 @@ export default async (req) => {
   if (req.method === "POST" || req.method === "PUT"){
     const body = await req.text();
     if (body.length > 3000000) return json({error: "for stort"}, 413);
-    try { JSON.parse(body); } catch (e){ return json({error: "ugyldig"}, 400); }
+    let parsed;
+    try { parsed = JSON.parse(body); } catch (e){ return json({error: "ugyldig"}, 400); }
+    const pretty = JSON.stringify(parsed, null, 2);
     let sha = null;
     const g = await fetch(API, {headers: ghHeaders(), cache: "no-store"});
     if (g.ok){ const d = await g.json(); sha = d.sha; }
-    const payload = {message: "Oppdater klassekart " + new Date().toISOString(), content: Buffer.from(body, "utf-8").toString("base64")};
+    const payload = {message: "Oppdater klassekart " + new Date().toISOString(), content: Buffer.from(pretty, "utf-8").toString("base64")};
     if (sha) payload.sha = sha;
     const p = await fetch(API, {method: "PUT", headers: Object.assign({"Content-Type": "application/json"}, ghHeaders()), body: JSON.stringify(payload)});
     if (!p.ok){ const t = await p.text(); return json({error: "github " + p.status, detail: t.slice(0, 160)}, 502); }
