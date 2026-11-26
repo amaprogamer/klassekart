@@ -553,9 +553,9 @@ function analyze(c){
 
 /* ---------- Storage ---------- */
 const LS_KEY = "klassekart-v2";
-const GH_KEY = "klassekart-gh";
+const API = "/api/archive";
 const remote = {ref: null, mode: "local", dirty: false, lastJson: "", writing: false, failed: false};
-const gh = {on: false, token: null, repo: null, path: "klassekart.json", sha: null, lastJson: "", timer: null, busy: false};
+const net = {on: false, needsSetup: false, lastJson: "", timer: null, busy: false};
 let saveTimer = null;
 function readLocal(){ try { const t = localStorage.getItem(LS_KEY); return t ? JSON.parse(t) : null; } catch (e){ return null; } }
 function writeLocal(){ try { localStorage.setItem(LS_KEY, JSON.stringify(store)); } catch (e){} }
@@ -567,8 +567,8 @@ const SAVE_TEXT = {
   local: "Lagres i denne nettleseren",
   readonly: "Du kan ikke lagre på denne siden. Endringer lagres i nettleseren.",
   error: "Kunne ikke lagre. Endringene ligger i nettleseren.",
-  ghsaved: "Lagret på GitHub-kontoen din",
-  gherror: "Får ikke kontakt med GitHub nå. Endringene ligger i nettleseren."
+  ghsaved: "Lagret automatisk på GitHub",
+  gherror: "Får ikke lagret til GitHub nå. Endringene ligger i nettleseren."
 };
 function setSave(s){ $("#saveState").dataset.s = s; $("#saveText").textContent = SAVE_TEXT[s] || ""; }
 
@@ -580,10 +580,10 @@ function persist(){
     setSave("saving");
     clearTimeout(saveTimer);
     saveTimer = setTimeout(flushSave, 700);
-  } else if (gh.on){
+  } else if (net.on){
     setSave("saving");
-    clearTimeout(gh.timer);
-    gh.timer = setTimeout(function(){ ghPush(); }, 1000);
+    clearTimeout(net.timer);
+    net.timer = setTimeout(netPush, 900);
   } else if (!remote.ref) setSave("local");
 }
 async function flushSave(retry){
@@ -614,107 +614,69 @@ async function flushSave(retry){
     if (remote.dirty){ clearTimeout(saveTimer); saveTimer = setTimeout(flushSave, 700); }
   }
 }
-/* ---------- Lagring på GitHub (ditt eget repo) ---------- */
-function ghEncode(str){ return btoa(unescape(encodeURIComponent(str))); }
-function ghDecode(b){ return decodeURIComponent(escape(atob((b || "").replace(/\n/g, "")))); }
-function ghHeaders(){ return {"Authorization": "Bearer " + gh.token, "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}; }
-function ghUrl(){ return "https://api.github.com/repos/" + gh.repo + "/contents/" + encodeURIComponent(gh.path); }
-function cleanRepo(v){ return (v || "").trim().replace(/^https?:\/\/github\.com\//i, "").replace(/\.git$/i, "").replace(/^\/+|\/+$/g, ""); }
-function initGithub(){
+/* ---------- Automatisk lagring på GitHub (via server-funksjon) ---------- */
+async function initArchive(){
   setSave("local");
   if (!/^https?:$/.test(location.protocol)){ renderSync(); return; }
-  try {
-    const c = JSON.parse(localStorage.getItem(GH_KEY) || "null");
-    if (c && c.token && c.repo){ gh.token = c.token; gh.repo = c.repo; gh.path = c.path || "klassekart.json"; gh.on = true; }
-  } catch (e){}
+  setSave("loading");
+  let resp = null, txt = "";
+  try { resp = await fetch(API, {cache: "no-store"}); txt = await resp.text(); }
+  catch (e){ net.on = false; updatePrivacyNote(); renderSync(); setSave("local"); return; }
+  const ct = (resp.headers.get("content-type") || "");
+  if (resp.ok && ct.indexOf("text/html") === -1){
+    net.on = true; net.needsSetup = false;
+    if (txt && txt.trim()){
+      try { store = normalizeStore(JSON.parse(txt)); net.lastJson = JSON.stringify(store); undoStack.length = 0; selected = null; renderAll(); } catch (e){}
+      setSave("ghsaved");
+    } else {
+      net.lastJson = "";
+      if (!store.example){ clearTimeout(net.timer); net.timer = setTimeout(netPush, 300); }
+      else setSave("ghsaved");
+    }
+  } else if (resp.status === 500 && txt.indexOf("GH_TOKEN") !== -1){
+    net.on = false; net.needsSetup = true; setSave("local");
+  } else {
+    net.on = false; setSave("local");
+  }
   updatePrivacyNote();
   renderSync();
-  if (gh.on) ghPull();
 }
-async function ghPull(){
-  if (!gh.on) return;
-  setSave("loading");
-  try {
-    const r = await fetch(ghUrl(), {headers: ghHeaders(), cache: "no-store"});
-    if (r.status === 404){ gh.sha = null; gh.lastJson = ""; if (!store.example) ghPush(); else setSave("ghsaved"); return; }
-    if (r.status === 401 || r.status === 403){ setSave("gherror"); toast("GitHub avviste tilgangen. Sjekk at du limte inn riktig token, og at det har «Contents: Read and write» på riktig repo."); return; }
-    if (!r.ok) throw new Error("http " + r.status);
-    const data = await r.json();
-    gh.sha = data.sha;
-    const json = ghDecode(data.content);
-    if (json && json.trim()){
-      store = normalizeStore(JSON.parse(json));
-      gh.lastJson = JSON.stringify(store);
-      undoStack.length = 0; selected = null;
-      renderAll();
-    }
-    setSave("ghsaved");
-  } catch (e){ setSave("gherror"); }
-}
-async function ghPush(retry){
-  if (!gh.on || gh.busy) return;
+async function netPush(){
+  if (!net.on || net.busy) return;
   const json = JSON.stringify(store);
-  if (json === gh.lastJson){ setSave("ghsaved"); return; }
-  gh.busy = true; setSave("saving");
+  if (json === net.lastJson){ setSave("ghsaved"); return; }
+  net.busy = true; setSave("saving");
   try {
-    const body = {message: "Oppdater klassekart " + new Date().toISOString(), content: ghEncode(json)};
-    if (gh.sha) body.sha = gh.sha;
-    const r = await fetch(ghUrl(), {method: "PUT", headers: Object.assign({"Content-Type": "application/json"}, ghHeaders()), body: JSON.stringify(body)});
-    if (r.status === 409 && !retry){
-      gh.busy = false;
-      try { const g = await fetch(ghUrl(), {headers: ghHeaders(), cache: "no-store"}); if (g.ok){ const d = await g.json(); gh.sha = d.sha; } } catch (e){}
-      return ghPush(true);
-    }
-    if (r.status === 401 || r.status === 403){ setSave("gherror"); toast("GitHub avviste skrivingen. Sjekk at tokenet har «Contents: Read and write»."); gh.busy = false; return; }
+    const r = await fetch(API, {method: "POST", headers: {"content-type": "application/json"}, body: json});
     if (!r.ok) throw new Error("http " + r.status);
-    const d = await r.json();
-    gh.sha = d.content && d.content.sha;
-    gh.lastJson = json;
-    setSave("ghsaved");
+    net.lastJson = json; setSave("ghsaved");
   } catch (e){ setSave("gherror"); }
-  gh.busy = false;
-  if (JSON.stringify(store) !== gh.lastJson){ clearTimeout(gh.timer); gh.timer = setTimeout(function(){ ghPush(); }, 1000); }
+  net.busy = false;
+  if (JSON.stringify(store) !== net.lastJson){ clearTimeout(net.timer); net.timer = setTimeout(netPush, 900); }
 }
 function renderSync(){
   const box = $("#syncBox"); if (!box) return;
   if (!/^https?:$/.test(location.protocol)){ box.hidden = true; return; }
   box.hidden = false; box.replaceChildren();
-  if (gh.on){
-    box.append(el("p", {class: "help", style: "margin:0 0 8px"},
-      "Arkivet lagres på GitHub-kontoen din (" + gh.repo + ") og følger deg på alle PC-er der du limer inn det samme tokenet."));
-    box.append(el("button", {class: "btn small ghost", type: "button", onclick: () => {
-      gh.on = false; gh.token = null; gh.sha = null; gh.lastJson = "";
-      localStorage.removeItem(GH_KEY); updatePrivacyNote(); renderSync(); setSave("local");
-    }}, "Koble fra GitHub (på denne PC-en)"));
-    return;
+  if (net.on){
+    box.append(el("p", {class: "help", style: "margin:0"},
+      "Arkivet lagres automatisk på GitHub og følger deg på alle PC-er du bruker siden på. Du trenger ikke gjøre noe."));
+  } else if (net.needsSetup){
+    box.append(el("p", {class: "help", style: "margin:0"},
+      "Automatisk GitHub-lagring er nesten klar – nøkkelen (GH_TOKEN) mangler i Netlify-innstillingene. Til da lagres arkivet i denne nettleseren."));
+  } else {
+    box.append(el("p", {class: "help", style: "margin:0"},
+      "Arkivet lagres i denne nettleseren."));
   }
-  box.append(el("p", {class: "help", style: "margin:0 0 8px"},
-    "Vil du at arkivet skal følge deg mellom PC-er? Lim inn din egen GitHub-tilgangsnøkkel (token). Den blir liggende bare i denne nettleseren – ikke på nettsiden."));
-  const repoInp = el("input", {type: "text", id: "ghRepo", placeholder: "eier/repo", value: gh.repo || "amaprogamer/klassekart-data", style: "flex:1 1 150px"});
-  const tokInp = el("input", {type: "password", id: "ghToken", placeholder: "github_pat_…", autocomplete: "off", style: "flex:1 1 150px"});
-  const connect = () => {
-    const repo = cleanRepo(repoInp.value);
-    const token = (tokInp.value || "").trim();
-    if (!repo || !token){ toast("Fyll inn både repo og token."); return; }
-    gh.repo = repo; gh.token = token; gh.path = "klassekart.json"; gh.on = true; gh.sha = null; gh.lastJson = "";
-    localStorage.setItem(GH_KEY, JSON.stringify({token: token, repo: repo, path: gh.path}));
-    updatePrivacyNote(); renderSync(); ghPull();
-    toast("Kobler til GitHub …");
-  };
-  tokInp.addEventListener("keydown", e => { if (e.key === "Enter") connect(); });
-  box.append(
-    el("div", {class: "row"}, repoInp),
-    el("div", {class: "row"}, tokInp, el("button", {class: "btn small primary", type: "button", onclick: connect}, "Koble til"))
-  );
 }
 function updatePrivacyNote(){
   const n = $("#privacyNote"); if (!n) return;
-  n.textContent = gh.on
-    ? "Arkivet lagres i ditt eget GitHub-repo (" + gh.repo + "), ikke på nettsiden. Bare du som har tokenet, ser det."
+  n.textContent = net.on
+    ? "Arkivet lagres automatisk i ditt eget GitHub-repo, ikke i nettsidefilene."
     : "Elevlistene lagres bare i denne nettleseren og sendes ikke noe sted.";
 }
 async function initRemote(){
-  if (!(window.claude && typeof window.claude.use === "function")){ initGithub(); return; }
+  if (!(window.claude && typeof window.claude.use === "function")){ initArchive(); return; }
   let db = null, user = null, uid = null;
   try { [db, user] = await Promise.all([window.claude.use("db"), window.claude.use("user")]); } catch (e){}
   if (!db || !user) return;
