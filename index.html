@@ -69,9 +69,9 @@ button,input,select,textarea{font:inherit;color:inherit}
 .classpick label{font-size:13px;color:var(--muted)}
 .savestate{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;min-width:0}
 .savestate .dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}
-.savestate[data-s="saved"] .dot,.savestate[data-s="netsaved"] .dot{background:var(--ok)}
+.savestate[data-s="saved"] .dot,.savestate[data-s="ghsaved"] .dot{background:var(--ok)}
 .savestate[data-s="saving"] .dot,.savestate[data-s="loading"] .dot{background:var(--warn)}
-.savestate[data-s="error"] .dot,.savestate[data-s="slow"] .dot,.savestate[data-s="neterror"] .dot{background:var(--danger)}
+.savestate[data-s="error"] .dot,.savestate[data-s="slow"] .dot,.savestate[data-s="gherror"] .dot{background:var(--danger)}
 
 /* Controls */
 .btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 12px;cursor:pointer;font-weight:700;font-size:14px;line-height:1.2;white-space:nowrap}
@@ -553,10 +553,9 @@ function analyze(c){
 
 /* ---------- Storage ---------- */
 const LS_KEY = "klassekart-v2";
-const SYNC_KEY = "klassekart-syncnavn";
-const API = "/api/archive";
+const GH_KEY = "klassekart-gh";
 const remote = {ref: null, mode: "local", dirty: false, lastJson: "", writing: false, failed: false};
-const net = {on: false, id: null, lastJson: "", timer: null, busy: false};
+const gh = {on: false, token: null, repo: null, path: "klassekart.json", sha: null, lastJson: "", timer: null, busy: false};
 let saveTimer = null;
 function readLocal(){ try { const t = localStorage.getItem(LS_KEY); return t ? JSON.parse(t) : null; } catch (e){ return null; } }
 function writeLocal(){ try { localStorage.setItem(LS_KEY, JSON.stringify(store)); } catch (e){} }
@@ -568,8 +567,8 @@ const SAVE_TEXT = {
   local: "Lagres i denne nettleseren",
   readonly: "Du kan ikke lagre på denne siden. Endringer lagres i nettleseren.",
   error: "Kunne ikke lagre. Endringene ligger i nettleseren.",
-  netsaved: "Synket til alle PC-ene dine",
-  neterror: "Får ikke kontakt med synk nå. Endringene ligger i nettleseren."
+  ghsaved: "Lagret på GitHub-kontoen din",
+  gherror: "Får ikke kontakt med GitHub nå. Endringene ligger i nettleseren."
 };
 function setSave(s){ $("#saveState").dataset.s = s; $("#saveText").textContent = SAVE_TEXT[s] || ""; }
 
@@ -581,10 +580,10 @@ function persist(){
     setSave("saving");
     clearTimeout(saveTimer);
     saveTimer = setTimeout(flushSave, 700);
-  } else if (net.on && net.id){
+  } else if (gh.on){
     setSave("saving");
-    clearTimeout(net.timer);
-    net.timer = setTimeout(netPush, 800);
+    clearTimeout(gh.timer);
+    gh.timer = setTimeout(function(){ ghPush(); }, 1000);
   } else if (!remote.ref) setSave("local");
 }
 async function flushSave(retry){
@@ -615,88 +614,107 @@ async function flushSave(retry){
     if (remote.dirty){ clearTimeout(saveTimer); saveTimer = setTimeout(flushSave, 700); }
   }
 }
-/* ---------- Synk mellom PC-er (Netlify) ---------- */
-function cleanSyncId(v){ return (v || "").toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40); }
-async function initNetlify(){
+/* ---------- Lagring på GitHub (ditt eget repo) ---------- */
+function ghEncode(str){ return btoa(unescape(encodeURIComponent(str))); }
+function ghDecode(b){ return decodeURIComponent(escape(atob((b || "").replace(/\n/g, "")))); }
+function ghHeaders(){ return {"Authorization": "Bearer " + gh.token, "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}; }
+function ghUrl(){ return "https://api.github.com/repos/" + gh.repo + "/contents/" + encodeURIComponent(gh.path); }
+function cleanRepo(v){ return (v || "").trim().replace(/^https?:\/\/github\.com\//i, "").replace(/\.git$/i, "").replace(/^\/+|\/+$/g, ""); }
+function initGithub(){
   setSave("local");
-  if (!/^https?:$/.test(location.protocol)) return;
-  // Synk krever en server-del (/api/archive). Vis bare synk-valget hvis den finnes.
-  let backend = false;
+  if (!/^https?:$/.test(location.protocol)){ renderSync(); return; }
   try {
-    const r = await fetch(API + "?id=__probe__", {cache: "no-store"});
-    const ct = (r.headers.get("content-type") || "");
-    backend = r.ok && ct.indexOf("text/html") === -1;
-  } catch (e){ backend = false; }
-  if (!backend){ net.on = false; renderSync(); return; }
-  net.on = true;
-  const saved = localStorage.getItem(SYNC_KEY);
-  if (saved){ net.id = cleanSyncId(saved); netPull(); }
+    const c = JSON.parse(localStorage.getItem(GH_KEY) || "null");
+    if (c && c.token && c.repo){ gh.token = c.token; gh.repo = c.repo; gh.path = c.path || "klassekart.json"; gh.on = true; }
+  } catch (e){}
+  updatePrivacyNote();
   renderSync();
+  if (gh.on) ghPull();
 }
-async function netPull(){
-  if (!net.on || !net.id) return;
+async function ghPull(){
+  if (!gh.on) return;
   setSave("loading");
   try {
-    const r = await fetch(API + "?id=" + encodeURIComponent(net.id), {cache: "no-store"});
-    const t = r.ok ? await r.text() : "";
-    if (t && t.trim()){
-      const incoming = JSON.parse(t);
-      store = normalizeStore(incoming);
-      net.lastJson = JSON.stringify(store);
+    const r = await fetch(ghUrl(), {headers: ghHeaders(), cache: "no-store"});
+    if (r.status === 404){ gh.sha = null; gh.lastJson = ""; if (!store.example) ghPush(); else setSave("ghsaved"); return; }
+    if (r.status === 401 || r.status === 403){ setSave("gherror"); toast("GitHub avviste tilgangen. Sjekk at du limte inn riktig token, og at det har «Contents: Read and write» på riktig repo."); return; }
+    if (!r.ok) throw new Error("http " + r.status);
+    const data = await r.json();
+    gh.sha = data.sha;
+    const json = ghDecode(data.content);
+    if (json && json.trim()){
+      store = normalizeStore(JSON.parse(json));
+      gh.lastJson = JSON.stringify(store);
       undoStack.length = 0; selected = null;
       renderAll();
-      setSave("netsaved");
-    } else {
-      net.lastJson = "";
-      if (!store.example) netPush(); else setSave("netsaved");
     }
-  } catch (e){ setSave("neterror"); }
+    setSave("ghsaved");
+  } catch (e){ setSave("gherror"); }
 }
-async function netPush(){
-  if (!net.on || !net.id || net.busy) return;
+async function ghPush(retry){
+  if (!gh.on || gh.busy) return;
   const json = JSON.stringify(store);
-  if (json === net.lastJson){ setSave("netsaved"); return; }
-  net.busy = true; setSave("saving");
+  if (json === gh.lastJson){ setSave("ghsaved"); return; }
+  gh.busy = true; setSave("saving");
   try {
-    const r = await fetch(API + "?id=" + encodeURIComponent(net.id), {method: "POST", headers: {"content-type": "application/json"}, body: json});
+    const body = {message: "Oppdater klassekart " + new Date().toISOString(), content: ghEncode(json)};
+    if (gh.sha) body.sha = gh.sha;
+    const r = await fetch(ghUrl(), {method: "PUT", headers: Object.assign({"Content-Type": "application/json"}, ghHeaders()), body: JSON.stringify(body)});
+    if (r.status === 409 && !retry){
+      gh.busy = false;
+      try { const g = await fetch(ghUrl(), {headers: ghHeaders(), cache: "no-store"}); if (g.ok){ const d = await g.json(); gh.sha = d.sha; } } catch (e){}
+      return ghPush(true);
+    }
+    if (r.status === 401 || r.status === 403){ setSave("gherror"); toast("GitHub avviste skrivingen. Sjekk at tokenet har «Contents: Read and write»."); gh.busy = false; return; }
     if (!r.ok) throw new Error("http " + r.status);
-    net.lastJson = json; setSave("netsaved");
-  } catch (e){ setSave("neterror"); }
-  net.busy = false;
-  if (JSON.stringify(store) !== net.lastJson){ clearTimeout(net.timer); net.timer = setTimeout(netPush, 800); }
+    const d = await r.json();
+    gh.sha = d.content && d.content.sha;
+    gh.lastJson = json;
+    setSave("ghsaved");
+  } catch (e){ setSave("gherror"); }
+  gh.busy = false;
+  if (JSON.stringify(store) !== gh.lastJson){ clearTimeout(gh.timer); gh.timer = setTimeout(function(){ ghPush(); }, 1000); }
 }
 function renderSync(){
   const box = $("#syncBox"); if (!box) return;
-  if (!net.on){ box.hidden = true; return; }
+  if (!/^https?:$/.test(location.protocol)){ box.hidden = true; return; }
   box.hidden = false; box.replaceChildren();
+  if (gh.on){
+    box.append(el("p", {class: "help", style: "margin:0 0 8px"},
+      "Arkivet lagres på GitHub-kontoen din (" + gh.repo + ") og følger deg på alle PC-er der du limer inn det samme tokenet."));
+    box.append(el("button", {class: "btn small ghost", type: "button", onclick: () => {
+      gh.on = false; gh.token = null; gh.sha = null; gh.lastJson = "";
+      localStorage.removeItem(GH_KEY); updatePrivacyNote(); renderSync(); setSave("local");
+    }}, "Koble fra GitHub (på denne PC-en)"));
+    return;
+  }
   box.append(el("p", {class: "help", style: "margin:0 0 8px"},
-    net.id ? "Arkivet synkes mellom PC-ene dine under navnet «" + net.id + "». Skriv samme navn på de andre PC-ene dine for å se det samme arkivet."
-           : "Vil du at arkivet skal følge deg mellom PC-er? Velg et navn (for eksempel fornavnet ditt) og skriv det samme på hver PC."));
-  const inp = el("input", {type: "text", id: "syncName", placeholder: "for eksempel lise", value: net.id || "", style: "flex:1 1 140px", maxlength: "40"});
-  inp.addEventListener("keydown", e => { if (e.key === "Enter") $("#btnSync").click(); });
+    "Vil du at arkivet skal følge deg mellom PC-er? Lim inn din egen GitHub-tilgangsnøkkel (token). Den blir liggende bare i denne nettleseren – ikke på nettsiden."));
+  const repoInp = el("input", {type: "text", id: "ghRepo", placeholder: "eier/repo", value: gh.repo || "amaprogamer/klassekart-data", style: "flex:1 1 150px"});
+  const tokInp = el("input", {type: "password", id: "ghToken", placeholder: "github_pat_…", autocomplete: "off", style: "flex:1 1 150px"});
   const connect = () => {
-    const v = cleanSyncId(inp.value);
-    if (!v){ toast("Skriv et navn først."); inp.focus(); return; }
-    net.id = v; net.lastJson = ""; localStorage.setItem(SYNC_KEY, v);
-    updatePrivacyNote(); renderSync(); netPull();
-    toast("Arkivet synkes nå under navnet «" + v + "».");
+    const repo = cleanRepo(repoInp.value);
+    const token = (tokInp.value || "").trim();
+    if (!repo || !token){ toast("Fyll inn både repo og token."); return; }
+    gh.repo = repo; gh.token = token; gh.path = "klassekart.json"; gh.on = true; gh.sha = null; gh.lastJson = "";
+    localStorage.setItem(GH_KEY, JSON.stringify({token: token, repo: repo, path: gh.path}));
+    updatePrivacyNote(); renderSync(); ghPull();
+    toast("Kobler til GitHub …");
   };
-  box.append(el("div", {class: "row"},
-    inp,
-    el("button", {class: "btn small primary", id: "btnSync", type: "button", onclick: connect}, net.id ? "Bytt navn" : "Koble til")
-  ));
-  if (net.id) box.append(el("button", {class: "btn small ghost", type: "button", onclick: () => {
-    net.id = null; localStorage.removeItem(SYNC_KEY); updatePrivacyNote(); renderSync(); setSave("local");
-  }}, "Koble fra (bare denne PC-en)"));
+  tokInp.addEventListener("keydown", e => { if (e.key === "Enter") connect(); });
+  box.append(
+    el("div", {class: "row"}, repoInp),
+    el("div", {class: "row"}, tokInp, el("button", {class: "btn small primary", type: "button", onclick: connect}, "Koble til"))
+  );
 }
 function updatePrivacyNote(){
   const n = $("#privacyNote"); if (!n) return;
-  n.textContent = (net.on && net.id)
-    ? "Arkivet synkes mellom PC-ene dine under navnet «" + net.id + "». Elevnavnene lagres da på serveren, ikke bare i nettleseren."
+  n.textContent = gh.on
+    ? "Arkivet lagres i ditt eget GitHub-repo (" + gh.repo + "), ikke på nettsiden. Bare du som har tokenet, ser det."
     : "Elevlistene lagres bare i denne nettleseren og sendes ikke noe sted.";
 }
 async function initRemote(){
-  if (!(window.claude && typeof window.claude.use === "function")){ initNetlify(); return; }
+  if (!(window.claude && typeof window.claude.use === "function")){ initGithub(); return; }
   let db = null, user = null, uid = null;
   try { [db, user] = await Promise.all([window.claude.use("db"), window.claude.use("user")]); } catch (e){}
   if (!db || !user) return;
