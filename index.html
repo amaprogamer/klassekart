@@ -94,8 +94,8 @@ textarea{width:100%;border:1px solid var(--line);background:var(--surface);borde
 @media (max-width:920px){.layout{grid-template-columns:minmax(0,1fr);padding:16px}}
 
 .side{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
-.tabs{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--line);background:var(--surface-2)}
-.tab{border:0;background:transparent;padding:11px 4px;font-weight:700;font-size:14px;cursor:pointer;color:var(--muted);border-bottom:3px solid transparent}
+.tabs{display:flex;border-bottom:1px solid var(--line);background:var(--surface-2)}
+.tab{flex:1;border:0;background:transparent;padding:11px 4px;font-weight:700;font-size:14px;cursor:pointer;color:var(--muted);border-bottom:3px solid transparent}
 .tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent);background:var(--surface)}
 .tabpanel{padding:16px;display:flex;flex-direction:column;gap:14px}
 .tabpanel[hidden]{display:none}
