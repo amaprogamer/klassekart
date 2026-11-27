@@ -14,6 +14,39 @@ function ghHeaders(){
     "User-Agent": "klassekart"
   };
 }
+// Kompakt, lesbar JSON: små verdier på én linje, lange lister/objekter brytes over få linjer.
+const W = 100;
+function inl(v){
+  if (Array.isArray(v)) return "[" + v.map(inl).join(", ") + "]";
+  if (v && typeof v === "object") return "{" + Object.keys(v).map(k => JSON.stringify(k) + ": " + inl(v[k])).join(", ") + "}";
+  return JSON.stringify(v);
+}
+function pack(parts, pad){
+  const lines = []; let cur = "";
+  for (const p of parts){
+    const next = cur ? cur + ", " + p : p;
+    if (cur && pad.length + next.length + 1 > W){ lines.push(cur + ","); cur = p; } else cur = next;
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+function fmt(v, d){
+  const pad = "  ".repeat(d), pad1 = "  ".repeat(d + 1);
+  if (v === null || typeof v !== "object") return JSON.stringify(v);
+  const one = inl(v);
+  if (pad.length + one.length <= W) return one;
+  const isArr = Array.isArray(v);
+  const keys = isArr ? null : Object.keys(v);
+  const items = isArr ? v : keys.map(k => v[k]);
+  const flat = items.every(x => x === null || typeof x !== "object");
+  const open = isArr ? "[" : "{", close = isArr ? "]" : "}";
+  if (flat){
+    const parts = isArr ? v.map(inl) : keys.map(k => JSON.stringify(k) + ": " + inl(v[k]));
+    return open + "\n" + pack(parts, pad1).map(l => pad1 + l).join("\n") + "\n" + pad + close;
+  }
+  const rows = isArr ? v.map(x => pad1 + fmt(x, d + 1)) : keys.map(k => pad1 + JSON.stringify(k) + ": " + fmt(v[k], d + 1));
+  return open + "\n" + rows.join(",\n") + "\n" + pad + close;
+}
 function json(obj, status){
   return new Response(JSON.stringify(obj), {status: status || 200, headers: {"content-type": "application/json", "cache-control": "no-store"}});
 }
@@ -35,7 +68,7 @@ export default async (req) => {
     if (body.length > 3000000) return json({error: "for stort"}, 413);
     let parsed;
     try { parsed = JSON.parse(body); } catch (e){ return json({error: "ugyldig"}, 400); }
-    const pretty = JSON.stringify(parsed, null, 2);
+    const pretty = fmt(parsed, 0) + "\n";
     let sha = null;
     const g = await fetch(API, {headers: ghHeaders(), cache: "no-store"});
     if (g.ok){ const d = await g.json(); sha = d.sha; }
