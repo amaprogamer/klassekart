@@ -403,6 +403,13 @@ function frontSet(c){
   const take = new Set(rows.slice(0, Math.max(1, c.rules.frontRows | 0 || 1)));
   return new Set(c.layout.desks.filter(k => take.has(parseKey(k)[0])));
 }
+/* Skjult standard: disse sitter på en av de to bakerste radene, med mindre de står i «foran»-lista. Vises ikke i appen. */
+const HIDDEN_BACK = ["Martin S"];
+function backSet(c){
+  const rows = [...new Set(c.layout.desks.map(k => parseKey(k)[0]))].sort((a, b) => a - b);
+  const take = new Set(rows.slice(-2));
+  return new Set(c.layout.desks.filter(k => take.has(parseKey(k)[0])));
+}
 function posMap(seats){ const p = {}; for (const k in seats) p[seats[k]] = k; return p; }
 
 /* ---------- Data ---------- */
@@ -474,7 +481,9 @@ function solve(c){
   const fixedStudents = new Set(Object.values(fixed));
   const movable = L.desks.filter(k => !lockedSet.has(k));
   const R = c.rules;
-  const ruleStudents = new Set([].concat(...R.apart, ...R.together, R.front));
+  const backNames = HIDDEN_BACK.filter(n => c.students.includes(n) && !R.front.includes(n) && !fixedStudents.has(n));
+  const ruleStudents = new Set([].concat(...R.apart, ...R.together, R.front, backNames));
+  const back = backSet(c);
   let pool = shuffle(c.students.filter(s => !fixedStudents.has(s)));
   pool = pool.filter(s => ruleStudents.has(s)).concat(pool.filter(s => !ruleStudents.has(s)));
   const placed = pool.slice(0, movable.length);
@@ -490,6 +499,7 @@ function solve(c){
     for (const [a, b] of R.apart) if (adj(a, b)) s += 100;
     for (const [a, b] of R.together) if (pos[a] && pos[b] && !nb[pos[a]].has(pos[b])) s += 40;
     for (const a of R.front) if (pos[a] && !front.has(pos[a])) s += 60;
+    for (const a of backNames) if (pos[a] && !back.has(pos[a])) s += 60;
     for (const [a, b, w] of repeat) if (adj(a, b)) s += w;
     return s;
   };
