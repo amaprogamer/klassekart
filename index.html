@@ -406,7 +406,7 @@ function frontSet(c){
 function posMap(seats){ const p = {}; for (const k in seats) p[seats[k]] = k; return p; }
 
 /* ---------- Data ---------- */
-const EXAMPLE = ["Emma","Noah","Nora","Oskar","Sofie","Jakob","Ella","Filip","Olivia","Lukas","Ingrid","Aksel","Maja","Isak","Sara","Henrik","Leah","Elias","Frida","Magnus","Ada","Theodor","Hedda","Johannes"];
+const EXAMPLE = ["Daria","Amelia","Haadiya","Sigurd","Eline","Long Yu","Axel","Rafi","Andreea","Pernille","Alida","Birk","Martin F","Thorbjørn","Simon","Conor","Helena","Vilde","Giacomo","Maksim","Sophia","Elias","Victoria","Mark","Martin S"];
 function newClass(name, students, layout){
   return {
     id: newId(), name, students: students || [],
@@ -417,10 +417,7 @@ function newClass(name, students, layout){
   };
 }
 function exampleStore(){
-  const c = newClass("Eksempel 7B", EXAMPLE.slice());
-  c.rules.apart = [["Noah","Oskar"],["Maja","Sara"]];
-  c.rules.front = ["Ella"];
-  c.rules.together = [["Ada","Hedda"]];
+  const c = newClass("Min klasse", EXAMPLE.slice());
   c.seats = solve(c);
   return {version: 1, activeId: c.id, classes: [c], example: true};
 }
