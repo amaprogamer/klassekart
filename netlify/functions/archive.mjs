@@ -30,6 +30,14 @@ function pack(parts, pad){
   if (cur) lines.push(cur);
   return lines;
 }
+const CELL = /^\d+-\d+$/;
+function gridRows(parts, cells, pad){
+  // En linje per pultrad, kolonnene pent under hverandre.
+  const w = Math.max.apply(null, parts.map(x => x.length)) + 1;
+  const by = {}; const order = [];
+  parts.forEach((x, i) => { const r = cells[i].split("-")[0]; if (!by[r]){ by[r] = []; order.push(r); } by[r].push(x + (i < parts.length - 1 ? "," : "")); });
+  return order.map(r => pad + by[r].map(x => x.padEnd(w + 1)).join("").trimEnd());
+}
 function fmt(v, d){
   const pad = "  ".repeat(d), pad1 = "  ".repeat(d + 1);
   if (v === null || typeof v !== "object") return JSON.stringify(v);
@@ -42,6 +50,9 @@ function fmt(v, d){
   const open = isArr ? "[" : "{", close = isArr ? "]" : "}";
   if (flat){
     const parts = isArr ? v.map(inl) : keys.map(k => JSON.stringify(k) + ": " + inl(v[k]));
+    const cells = isArr ? v : keys;
+    if (cells.length && cells.every(c => typeof c === "string" && CELL.test(c)))
+      return open + "\n" + gridRows(parts, cells, pad1).join("\n") + "\n" + pad + close;
     return open + "\n" + pack(parts, pad1).map(l => pad1 + l).join("\n") + "\n" + pad + close;
   }
   const rows = isArr ? v.map(x => pad1 + fmt(x, d + 1)) : keys.map(k => pad1 + JSON.stringify(k) + ": " + fmt(v[k], d + 1));
